@@ -47,8 +47,7 @@ class AzkarApp extends StatelessWidget {
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: buildTheme(Brightness.light),
-        darkTheme: buildTheme(Brightness.dark),
+        theme: buildTheme(),
         home: const HomeScreen(),
       ),
     );

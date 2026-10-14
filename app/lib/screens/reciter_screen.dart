@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../player.dart';
+import '../theme.dart';
 import 'player_widgets.dart';
+import 'retro_radio.dart';
+import 'ui.dart';
 
 class ReciterScreen extends StatefulWidget {
   const ReciterScreen({super.key, required this.reciter, this.initialRewaya});
@@ -34,67 +37,184 @@ class _ReciterScreenState extends State<ReciterScreen> {
     final catalog = state.catalog!;
     final player = state.player;
     final fav = state.isFavorite(_moshaf.id);
+    final moshafs = widget.reciter.moshafs;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.reciter.name),
-        actions: [
-          IconButton(
-            tooltip: fav ? 'شيل من المفضلة' : 'ضيف للمفضلة',
-            icon: Icon(fav ? Icons.favorite : Icons.favorite_border),
-            onPressed: () => state.toggleFavorite(_moshaf.id),
-          ),
-        ],
-      ),
       bottomNavigationBar: const MiniPlayer(),
-      body: Column(
-        children: [
-          if (widget.reciter.moshafs.length > 1)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: DropdownButtonFormField<int>(
-                initialValue: _moshaf.id,
-                decoration: const InputDecoration(labelText: 'الرواية', border: OutlineInputBorder(), isDense: true),
-                items: [
-                  for (final m in widget.reciter.moshafs)
-                    DropdownMenuItem(value: m.id, child: Text(m.name)),
-                ],
-                onChanged: (id) => setState(() => _moshaf = widget.reciter.moshafs.firstWhere((m) => m.id == id)),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 210,
+            backgroundColor: Retro.night,
+            title: Text(widget.reciter.name),
+            actions: [
+              IconButton(
+                tooltip: fav ? 'شيل من المفضلة' : 'ضيف للمفضلة',
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (c, a) =>
+                      ScaleTransition(scale: a, child: c),
+                  child: Icon(
+                    fav
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    key: ValueKey(fav),
+                    color: fav ? Retro.red : Retro.cream,
+                  ),
+                ),
+                onPressed: () => state.toggleFavorite(_moshaf.id),
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.parallax,
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF4A2F1B), Retro.night],
+                  ),
+                ),
+                alignment: Alignment.bottomCenter,
+                padding: const EdgeInsets.only(bottom: 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Hero(
+                      tag: 'reciter-${widget.reciter.id}',
+                      child: Monogram(name: widget.reciter.name, size: 76),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${moshafs.length} ${moshafs.length == 1 ? 'مصحف' : 'مصاحف'} • ${_moshaf.surahs.length} سورة',
+                      style: const TextStyle(color: Retro.muted, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: FilledButton.icon(
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('شغّل المصحف كله'),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              onPressed: () => player.playMoshaf(_moshaf, _moshaf.surahs.first),
+          ),
+          if (moshafs.length > 1)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 56,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  children: [
+                    for (final m in moshafs)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ChoiceChip(
+                          showCheckmark: false,
+                          label: Text(m.name),
+                          selected: m.id == _moshaf.id,
+                          onSelected: (_) => setState(() => _moshaf = m),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('شغّل المصحف كله'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+                onPressed: () =>
+                    player.playMoshaf(_moshaf, _moshaf.surahs.first),
+              ),
             ),
           ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: player,
-              builder: (context, _) {
-                final p = player.playback;
-                final current = p is MoshafPlayback && p.moshaf.id == _moshaf.id ? player.currentSurah : null;
-                return ListView.builder(
+          ListenableBuilder(
+            listenable: player,
+            builder: (context, _) {
+              final p = player.playback;
+              final current = p is MoshafPlayback && p.moshaf.id == _moshaf.id
+                  ? player.currentSurah
+                  : null;
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverList.builder(
                   itemCount: _moshaf.surahs.length,
                   itemBuilder: (context, i) {
                     final s = _moshaf.surahs[i];
                     final isCurrent = s == current;
-                    return ListTile(
-                      selected: isCurrent,
-                      leading: CircleAvatar(
-                        radius: 18,
-                        child: isCurrent ? const Icon(Icons.graphic_eq, size: 18) : Text('$s', style: const TextStyle(fontSize: 13)),
+                    return GlowCard(
+                      active: isCurrent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      title: Text('سورة ${catalog.surahName(s)}'),
-                      subtitle: Text(formatDuration(_moshaf.durations[i])),
-                      onTap: () => player.playMoshaf(_moshaf, s),
+                      onTap: () => isCurrent
+                          ? player.toggle()
+                          : player.playMoshaf(_moshaf, s),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: isCurrent ? Retro.amberGlow : null,
+                              border: isCurrent
+                                  ? null
+                                  : Border.all(
+                                      color: Retro.brass.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                    ),
+                            ),
+                            child: isCurrent
+                                ? const EqualizerBars(
+                                    color: Color(0xFF2A1A05),
+                                    height: 16,
+                                    bars: 3,
+                                  )
+                                : Text(
+                                    '$s',
+                                    style: const TextStyle(
+                                      fontFamily: 'NotoSans',
+                                      color: Retro.brass,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              'سورة ${catalog.surahName(s)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: isCurrent ? Retro.amber : Retro.cream,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            formatDuration(_moshaf.durations[i]),
+                            style: const TextStyle(
+                              color: Retro.muted,
+                              fontFamily: 'NotoSans',
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
