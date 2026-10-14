@@ -1,77 +1,52 @@
-import json, urllib.request, urllib.parse, time
+import json, urllib.request, urllib.parse, time, hashlib, subprocess
 UA = {'User-Agent': 'azkarelmuslim-probe/1.0 (https://github.com/ottian/azkarelmuslim)'}
-def get(url, raw=False, tries=5):
-    for i in range(tries):
+def get(url, raw=False, headers=None):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={**UA, **(headers or {})}), timeout=60) as r:
+        b = r.read()
+        return b if raw else json.loads(b)
+
+print('=== radiojar station info')
+for sid in ['8s5u5tpdtwzuv', '0tpy1h0kxtzuv']:
+    for u in [f'https://www.radiojar.com/api/stations/{sid}', f'https://www.radiojar.com/api/stations/{sid}/now_playing/']:
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
-                b = r.read()
-                return b if raw else json.loads(b)
-        except urllib.error.HTTPError as e:
-            if e.code == 429 and i < tries - 1:
-                time.sleep(5 * (i + 1)); continue
-            raise
-
-print('=== egypt stream headers')
-for u in ['https://stream.radiojar.com/8s5u5tpdtwzuv']:
-    req = urllib.request.Request(u, headers={**UA, 'Icy-MetaData': '1'})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        print({k: v for k, v in r.headers.items() if k.lower().startswith(('icy', 'content'))})
-
-print('=== mp3quran radios, egyptian reciters')
-radios = get('https://mp3quran.net/api/v3/radios?language=ar')['radios']
-for r in radios:
-    if any(k in r['name'] for k in ['رفعت', 'شعيشع', 'الشعشاعي', 'طوبار', 'نعينع', 'عبدالباسط', 'عبد الباسط', 'الحصري', 'المنشاوي', 'مصطفى إسماعيل', 'البنا', 'الطبلاوي', 'الطوخي', 'محمد عمران', 'النقشبندي', 'الشحات', 'كامل يوسف', 'أحمد عامر', 'الفشني', 'أبو العينين', 'عبدالعزيز علي', 'محمود حسين منصور', 'مصر']):
-        print(r['id'], r['name'], r['url'])
-print('--- all radio names'); print(' | '.join(r['name'] for r in radios))
-
-print('=== wikidata reciters')
-feat = json.load(open('.github/probe/featured.json'))
-for rec in feat['reciters']:
-    name = rec['name']
-    time.sleep(1.5)
+            print(u, get(u, raw=True)[:600])
+        except Exception as e:
+            print(u, 'ERR', e)
+    # ICY metadata
     try:
-        res = get('https://www.wikidata.org/w/api.php?' + urllib.parse.urlencode(
-            {'action': 'wbsearchentities', 'search': name, 'language': 'ar', 'uselang': 'ar', 'format': 'json', 'limit': 5}))
-        ids = [x['id'] for x in res.get('search', [])]
-        if not ids:
-            print(rec['id'], name, '-> NONE'); continue
-        time.sleep(1)
-        ents = get('https://www.wikidata.org/w/api.php?' + urllib.parse.urlencode(
-            {'action': 'wbgetentities', 'ids': '|'.join(ids), 'props': 'claims|descriptions|labels', 'languages': 'ar|en', 'format': 'json'}))['entities']
-        for q in ids:
-            e = ents[q]
-            p18 = [c['mainsnak'].get('datavalue', {}).get('value') for c in e.get('claims', {}).get('P18', [])]
-            occ = [c['mainsnak'].get('datavalue', {}).get('value', {}).get('id') for c in e.get('claims', {}).get('P106', [])]
-            d = e.get('descriptions', {}).get('en', {}).get('value')
-            print(rec['id'], name, '->', q, e.get('labels', {}).get('ar', {}).get('value'), '|', d, '| P18', p18, '| occ', occ)
-    except Exception as ex:
-        print(rec['id'], name, 'ERR', ex)
-
-print('=== azkar repo')
-for u in ['https://api.github.com/repos/nawafalqari/azkar-api', 'https://api.github.com/repos/osamayy/azkar-db']:
-    try:
-        d = get(u); print(u, d.get('license'), d.get('description'))
+        req = urllib.request.Request(f'https://stream.radiojar.com/{sid}', headers={**UA, 'Icy-MetaData': '1'})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            mi = int(r.headers.get('icy-metaint', 0))
+            if mi:
+                r.read(mi); n = r.read(1)[0] * 16; print(sid, 'META', r.read(n))
     except Exception as e:
-        print(u, 'ERR', e)
-az = get('https://raw.githubusercontent.com/nawafalqari/azkar-api/56df51279ab6eb86dc2f6202c7de26c8948331c1/azkar.json')
-for k, v in az.items():
-    items = [x for g in v for x in (g if isinstance(g, list) else [g])]
-    print(k, len(items))
+        print(sid, 'ICY ERR', e)
 
-print('=== commons adhan audio')
-time.sleep(3)
-for q in ['adhan filetype:audio', 'azan filetype:audio', 'call to prayer filetype:audio']:
-    try:
-        res = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(
-            {'action': 'query', 'list': 'search', 'srsearch': q, 'srnamespace': 6, 'srlimit': 25, 'format': 'json'}))
-        titles = [x['title'] for x in res['query']['search']]
-        time.sleep(2)
-        info = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(
-            {'action': 'query', 'titles': '|'.join(titles), 'prop': 'imageinfo', 'iiprop': 'url|size|extmetadata|mime', 'format': 'json'}))
-        for p in info['query']['pages'].values():
-            ii = (p.get('imageinfo') or [{}])[0]
-            md = ii.get('extmetadata', {})
-            print(p['title'], ii.get('mime'), ii.get('size'), md.get('LicenseShortName', {}).get('value'), '|', md.get('Artist', {}).get('value', '')[:80], '|', md.get('ImageDescription', {}).get('value', '')[:120].replace('\n', ' '))
-    except Exception as e:
-        print('ERR', e)
+print('=== adhan candidates')
+files = ['Beautiful adhan.ogg', '33937 ejaz215 call-to-prayer-from-the-prophet-s-mo.ogg', 'Call to prayer by Sabah Fakhry.mp3', 'Adhan.ogg']
+for f in files:
     time.sleep(3)
+    try:
+        info = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(
+            {'action': 'query', 'titles': 'File:' + f, 'prop': 'imageinfo', 'iiprop': 'url|extmetadata|sha1', 'format': 'json'}))
+        p = list(info['query']['pages'].values())[0]; ii = p['imageinfo'][0]; md = ii['extmetadata']
+        url = ii['url']
+        time.sleep(2)
+        b = get(url, raw=True)
+        open('/tmp/a', 'wb').write(b)
+        dur = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', '/tmp/a'], capture_output=True, text=True).stdout.strip()
+        print(f, '|', url, '| sha256', hashlib.sha256(b).hexdigest(), '| dur', dur, '|', md.get('LicenseShortName', {}).get('value'), '|', md.get('Artist', {}).get('value'), '|', md.get('Credit', {}).get('value'), '|', md.get('ImageDescription', {}).get('value'))
+    except Exception as e:
+        print(f, 'ERR', e)
+
+print('=== photos')
+photos = {118: 'Hussary.jpg', 112: 'Elminshwey.jpg', 123: 'Мишари Рашид.jpg', 54: 'Abdul-Rahman Al-Sudais (Cropped, 2011).jpg',
+          31: 'Saud Shuraim doing the Khutbah.png', 102: 'Maher Al Mueaqly.png', 30: 'Saad al Ghamdi.jpg', 92: 'Yasser Al-Dosari.png',
+          74: 'Huthaify.jpg', 125: 'Mostafa Ismaeel.jpg', 111: 'Qari Muhammad Jebril, Ramadan 2019.png', 86: 'صورة شخصية الشيخ ناصر القطامي.jpg',
+          231: 'هزاع البلوشي.jpg'}
+time.sleep(3)
+info = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(
+    {'action': 'query', 'titles': '|'.join('File:' + f for f in photos.values()), 'prop': 'imageinfo', 'iiprop': 'url|size|extmetadata', 'iiurlwidth': 300, 'format': 'json'}))
+for p in info['query']['pages'].values():
+    ii = p['imageinfo'][0]; md = ii['extmetadata']
+    print(p['title'], '|', ii.get('width'), 'x', ii.get('height'), '|', ii.get('thumburl'), '|', md.get('LicenseShortName', {}).get('value'), '|', (md.get('Artist', {}).get('value') or '')[:120])
