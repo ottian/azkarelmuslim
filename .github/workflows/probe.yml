@@ -1,0 +1,24 @@
+name: Probe playback
+on:
+  push:
+    branches: [probe/playback]
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audio files
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          for u in https://cdn.mp3quran.net/audio/hazza-balushi/r1/015.mp3 https://cdn.mp3quran.net/audio/hazza-balushi/r1/001.mp3; do
+            echo "== $u"; curl -sSI "$u" | grep -iE "^(HTTP|content-type|content-length|location)"
+            curl -s -r 0-300000 "$u" -o /tmp/a.mp3; ffprobe -v error -show_entries format_tags=title,artist,album -of default=nw=1 /tmp/a.mp3
+          done
+      - name: Browser
+        run: |
+          cd .github/probe && npm init -y >/dev/null && npm i -q playwright@1.56.1 >/dev/null && npx playwright install --with-deps chromium >/dev/null
+          mkdir -p shots && node probe.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots
+          path: .github/probe/shots
