@@ -1,0 +1,36 @@
+name: Server
+
+on:
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/server.yml"]
+  pull_request:
+    paths: ["server/**", ".github/workflows/server.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python tests (API والاستيراد)
+        working-directory: server/api
+        run: python3 -m unittest -v
+
+      - name: Liquidsoap script check
+        run: |
+          docker run --rm -e ICECAST_SOURCE_PASSWORD=x \
+            -v "$PWD/liquidsoap:/etc/liq:ro" \
+            savonet/liquidsoap:v2.3.3 --check /etc/liq/radio.liq
+
+      - name: Shell scripts syntax
+        run: bash -n install.sh && bash -n scripts/update-app.sh && sh -n icecast/entrypoint.sh
+
+      - name: Compose file and images build
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+          docker compose build

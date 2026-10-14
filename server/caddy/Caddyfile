@@ -1,0 +1,51 @@
+{
+	# لو مفيش دومين (SITE_ADDRESS=:80) مش محتاجين شهادات
+	email {$ACME_EMAIL:admin@localhost}
+}
+
+{$SITE_ADDRESS::80} {
+	# البث اللايف: /stream/main ← icecast:8000/main
+	handle_path /stream/* {
+		reverse_proxy icecast:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy api:8080 {
+			flush_interval -1
+		}
+	}
+
+	# ملفات السور (بتدعم التقديم والترجيع)
+	handle /media/audio/* {
+		root * /srv
+		header Cache-Control "public, max-age=2592000, immutable"
+		header Access-Control-Allow-Origin "*"
+		file_server
+	}
+
+	# ملفات تنزيل التطبيق (apk و exe)
+	handle /downloads/* {
+		root * /srv
+		file_server browse
+	}
+
+	# تطبيق الويب (للآيفون والكمبيوتر)
+	handle {
+		root * /srv/web
+		encode zstd gzip
+		try_files {path} /index.html
+		@static path *.js *.wasm *.png *.ttf *.otf *.woff2 *.json
+		header @static Cache-Control "public, max-age=3600"
+		header /index.html Cache-Control "no-cache"
+		header /flutter_service_worker.js Cache-Control "no-cache"
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+		level WARN
+	}
+}

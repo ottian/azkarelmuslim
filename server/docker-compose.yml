@@ -1,0 +1,58 @@
+name: azkar
+
+services:
+  icecast:
+    build: ./icecast
+    restart: unless-stopped
+    environment:
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:?run install.sh to create .env}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?run install.sh to create .env}
+      ICECAST_MAX_LISTENERS: ${ICECAST_MAX_LISTENERS:-500}
+      ICECAST_HOSTNAME: ${PUBLIC_HOST:-localhost}
+
+  liquidsoap:
+    image: savonet/liquidsoap:v2.3.3
+    restart: unless-stopped
+    command: ["/etc/liquidsoap/radio.liq"]
+    depends_on: [icecast]
+    environment:
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD}
+      STATION_NAME: ${STATION_NAME:-إذاعة أذكار المسلم}
+    volumes:
+      - ./liquidsoap:/etc/liquidsoap:ro
+      - ./data/media:/media
+      - ./data/state:/state
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on: [icecast]
+    environment:
+      BITRATE_KBPS: ${BITRATE_KBPS:-64}
+    volumes:
+      - ./data/media:/media
+      - ./data/state:/state:ro
+      - ./library.json:/config/library.json:ro
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on: [api, icecast]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/media/audio:/srv/media/audio:ro
+      - ./data/web:/srv/web:ro
+      - ./data/downloads:/srv/downloads:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

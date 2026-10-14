@@ -1,0 +1,63 @@
+{
+  "station_name": "إذاعة أذكار المسلم",
+  "bitrate_kbps": 64,
+  "min_free_gb": 3,
+  "reciters": [
+    {
+      "reciter": "مشاري العفاسي",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "reciter": "عبدالباسط عبدالصمد",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "reciter": "محمود خليل الحصري",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "reciter": "محمد صديق المنشاوي",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "reciter": "ماهر المعيقلي",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "reciter": "سعد الغامدي",
+      "rewaya": 1,
+      "style": "مرتل"
+    },
+    {
+      "each_rewaya": 1,
+      "exclude_rewaya": [
+        1
+      ],
+      "exclude_rewaya_names": [
+        "المعلم",
+        "المجود"
+      ]
+    }
+  ],
+  "channels": [
+    {
+      "id": "main",
+      "name": "البث الرئيسي",
+      "description": "ختمة متواصلة بأصوات كبار القراء برواية حفص عن عاصم",
+      "rewaya": 1
+    },
+    {
+      "id": "qiraat",
+      "name": "إذاعة القراءات",
+      "description": "ختمة متواصلة تتنقل بين كل الروايات",
+      "exclude_rewaya": [
+        1
+      ]
+    }
+  ]
+}

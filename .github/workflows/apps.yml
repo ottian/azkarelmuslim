@@ -1,0 +1,138 @@
+name: Apps
+
+# بيبني التطبيقات على كل push. ولما تعمل tag زي v1.0.0 بيعمل Release
+# فيه نسخة الويب والأندرويد والويندوز، وبعدها على السيرفر:
+#   sudo ./scripts/update-app.sh
+#
+# الإعدادات (Settings > Secrets and variables > Actions):
+#   Variable  SERVER_URL                 عنوان السيرفر، مثلًا https://radio.example.com
+#   Secret    ANDROID_KEYSTORE_BASE64    (اختياري) مفتاح توقيع الأندرويد
+#   Secret    ANDROID_KEYSTORE_PASSWORD
+#   Secret    ANDROID_KEY_ALIAS
+#   Secret    ANDROID_KEY_PASSWORD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/apps.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.47.7"
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  web:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # --no-web-resources-cdn: كل ملفات الويب بتتقدم من سيرفرنا، من غير CDN خارجي
+      - run: flutter build web --release --no-web-resources-cdn
+      - run: tar -czf ../azkar-web.tar.gz -C build/web .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azkar-web
+          path: azkar-web.tar.gz
+
+  android:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > android/app/release.jks
+            cat > android/key.properties <<EOF
+          storeFile=app/release.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, the APK is signed with a debug key"
+          fi
+      - run: flutter build apk --release --dart-define=SERVER_URL=${{ vars.SERVER_URL }}
+      - run: cp build/app/outputs/flutter-apk/app-release.apk ../azkar-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azkar-android
+          path: azkar-android.apk
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter build windows --release --dart-define=SERVER_URL=${{ vars.SERVER_URL }}
+      - run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath ../azkar-windows.zip
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azkar-windows
+          path: azkar-windows.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [web, android, windows]
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "إذاعة أذكار المسلم $GITHUB_REF_NAME" --generate-notes \
+            azkar-web.tar.gz azkar-android.apk azkar-windows.zip
