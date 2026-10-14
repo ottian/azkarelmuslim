@@ -51,6 +51,13 @@ class PlayerController extends ChangeNotifier {
   Playback? _advancedFrom;
   bool _loading = false;
 
+  /// تكرار نفس السورة (للحفظ)
+  bool repeatSurah = false;
+  double speed = 1.0;
+
+  /// مؤقت النوم: يقف لما السورة الحالية تخلص
+  bool stopAtSurahEnd = false;
+
   bool get isLive => playback is LivePlayback;
   /// على الويب مع سيرفرنا بنشغّل المصحف كبث واحد متصل (للآيفون).
   /// في نسخة GitHub Pages مفيش سيرفر يوصّل الملفات، فبنشغّلها كقائمة.
@@ -73,7 +80,8 @@ class PlayerController extends ChangeNotifier {
     ));
   }
 
-  Future<void> playMoshaf(Moshaf moshaf, int surah) async {
+  /// [startAt] للرجوع لنفس المكان اللي المستمع وقف عنده
+  Future<void> playMoshaf(Moshaf moshaf, int surah, {Duration? startAt}) async {
     // البث اللايف مالوش نهاية، لازم نقفله الأول وإلا المتصفح بيفضل مستني عليه
     if (isLive && !kIsWeb) await player.stop();
     playback = MoshafPlayback(moshaf, surah);
@@ -90,14 +98,14 @@ class PlayerController extends ChangeNotifier {
         ),
       ));
     } else if (_chainFiles) {
-      await _load(_surahSource(moshaf, surah));
+      await _load(_surahSource(moshaf, surah), startAt: startAt);
     } else {
       final sources = [
         for (final s in moshaf.surahs)
           _surahSource(moshaf, s),
       ];
       final index = moshaf.surahs.indexOf(surah);
-      await _load(null, sources: sources, initialIndex: index < 0 ? 0 : index);
+      await _load(null, sources: sources, initialIndex: index < 0 ? 0 : index, startAt: startAt);
     }
   }
 
@@ -112,7 +120,7 @@ class PlayerController extends ChangeNotifier {
       );
 
   Future<void> _load(AudioSource? source,
-      {List<AudioSource>? sources, int initialIndex = 0}) async {
+      {List<AudioSource>? sources, int initialIndex = 0, Duration? startAt}) async {
     _reconnect?.cancel();
     error = null;
     notifyListeners();
@@ -127,10 +135,13 @@ class PlayerController extends ChangeNotifier {
         _updateWebMediaSession(source);
       }
       if (source != null) {
-        await player.setAudioSource(source);
+        await player.setAudioSource(source, initialPosition: startAt);
       } else {
-        await player.setAudioSources(sources!, initialIndex: initialIndex);
+        await player.setAudioSources(sources!, initialIndex: initialIndex, initialPosition: startAt);
       }
+      // اللايف دايمًا بسرعته الطبيعية
+      await player.setSpeed(isLive ? 1.0 : speed);
+      await player.setLoopMode(repeatSurah && !isLive && !_chainFiles ? LoopMode.one : LoopMode.off);
       _loading = false;
       unawaited(player.play());
     } on PlayerException catch (e) {
@@ -169,8 +180,16 @@ class PlayerController extends ChangeNotifier {
     if (_chainFiles && p is MoshafPlayback && state.processingState == ProcessingState.completed &&
         !_loading && _advancedFrom != p) {
       _advancedFrom = p;
-      final i = p.moshaf.surahs.indexOf(currentSurah ?? p.startSurah) + 1;
-      if (i > 0 && i < p.moshaf.surahs.length) playMoshaf(p.moshaf, p.moshaf.surahs[i]);
+      final current = currentSurah ?? p.startSurah;
+      final i = p.moshaf.surahs.indexOf(current) + 1;
+      if (stopAtSurahEnd) {
+        stopAtSurahEnd = false;
+        stop();
+      } else if (repeatSurah) {
+        playMoshaf(p.moshaf, current);
+      } else if (i > 0 && i < p.moshaf.surahs.length) {
+        playMoshaf(p.moshaf, p.moshaf.surahs[i]);
+      }
     }
     notifyListeners();
   }
@@ -206,6 +225,12 @@ class PlayerController extends ChangeNotifier {
       if (i != null && i < p.moshaf.surahs.length) surah = p.moshaf.surahs[i];
     }
     if (surah != currentSurah) {
+      // على أندرويد وويندوز: السورة خلصت ودخلنا في اللي بعدها
+      if (stopAtSurahEnd && currentSurah != null && !_chainFiles) {
+        stopAtSurahEnd = false;
+        stop();
+        return;
+      }
       currentSurah = surah;
       notifyListeners();
     }
@@ -245,8 +270,30 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setSpeed(double value) async {
+    speed = value;
+    if (!isLive) await player.setSpeed(value);
+    notifyListeners();
+  }
+
+  Future<void> setRepeatSurah(bool value) async {
+    repeatSurah = value;
+    if (!_chainFiles) await player.setLoopMode(value ? LoopMode.one : LoopMode.off);
+    notifyListeners();
+  }
+
+  void setStopAtSurahEnd(bool value) {
+    stopAtSurahEnd = value;
+    if (value) {
+      _sleepTimer?.cancel();
+      sleepAt = null;
+    }
+    notifyListeners();
+  }
+
   void setSleepTimer(Duration? duration) {
     _sleepTimer?.cancel();
+    if (duration != null) stopAtSurahEnd = false;
     if (duration == null) {
       sleepAt = null;
     } else {

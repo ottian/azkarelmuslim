@@ -6,6 +6,8 @@ import 'live_screen.dart';
 import 'player_widgets.dart';
 import 'reciters_screen.dart';
 import 'settings_screen.dart';
+import 'surahs_screen.dart';
+import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,19 +19,71 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
+  static const _destinations = [
+    (Icons.radio_outlined, Icons.radio, 'مباشر'),
+    (Icons.menu_book_outlined, Icons.menu_book_rounded, 'السور'),
+    (Icons.mic_none_rounded, Icons.mic_rounded, 'القراء'),
+    (Icons.library_music_outlined, Icons.library_music_rounded, 'مكتبتي'),
+    (Icons.tune_outlined, Icons.tune_rounded, 'الإعدادات'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     if (!state.api.isConfigured) return const SettingsScreen(firstRun: true);
 
-    const pages = [
-      LiveScreen(),
-      RecitersScreen(),
-      FavoritesScreen(),
-      SettingsScreen(),
-    ];
+    const pages = [LiveScreen(), SurahsScreen(), RecitersScreen(), FavoritesScreen(), SettingsScreen()];
+    final body = IndexedStack(index: _tab, children: pages);
+    final width = MediaQuery.sizeOf(context).width;
+
+    // الكمبيوتر والتابلت: قايمة جانبية، والراديو ثابت على الجنب
+    if (width >= wideLayoutWidth) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NavigationRail(
+                backgroundColor: Retro.surface,
+                extended: width >= 1280,
+                minExtendedWidth: 200,
+                selectedIndex: _tab,
+                onDestinationSelected: (i) => setState(() => _tab = i),
+                indicatorColor: Retro.amber.withValues(alpha: 0.16),
+                selectedIconTheme: const IconThemeData(color: Retro.amber),
+                unselectedIconTheme: const IconThemeData(color: Retro.muted),
+                selectedLabelTextStyle: const TextStyle(color: Retro.amber, fontWeight: FontWeight.bold),
+                unselectedLabelTextStyle: const TextStyle(color: Retro.muted),
+                labelType: width >= 1280 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+                leading: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Icon(Icons.radio_rounded, color: Retro.brass, size: 32),
+                ),
+                destinations: [
+                  for (final (icon, selected, label) in _destinations)
+                    NavigationRailDestination(icon: Icon(icon), selectedIcon: Icon(selected), label: Text(label)),
+                ],
+              ),
+              Expanded(child: body),
+              Container(
+                width: 420,
+                decoration: const BoxDecoration(
+                  color: Retro.surface,
+                  border: BorderDirectional(start: BorderSide(color: Retro.line)),
+                ),
+                child: const SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(20, 28, 20, 20),
+                  child: NowPlayingPanel(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      body: IndexedStack(index: _tab, children: pages),
+      body: body,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -38,27 +92,9 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationBar(
             selectedIndex: _tab,
             onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.radio_outlined),
-                selectedIcon: Icon(Icons.radio),
-                label: 'مباشر',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.mic_none_rounded),
-                selectedIcon: Icon(Icons.mic_rounded),
-                label: 'القراء',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.favorite_outline_rounded),
-                selectedIcon: Icon(Icons.favorite_rounded),
-                label: 'المفضلة',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.tune_outlined),
-                selectedIcon: Icon(Icons.tune_rounded),
-                label: 'الإعدادات',
-              ),
+            destinations: [
+              for (final (icon, selected, label) in _destinations)
+                NavigationDestination(icon: Icon(icon), selectedIcon: Icon(selected), label: label),
             ],
           ),
         ],
@@ -66,3 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+/// من العرض ده وأكبر بنعرض القايمة الجانبية والراديو على الجنب
+const wideLayoutWidth = 1000.0;

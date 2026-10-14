@@ -203,47 +203,35 @@ class _PlayerSheet extends StatelessWidget {
   const _PlayerSheet();
 
   @override
+  Widget build(BuildContext context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Center(
+            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: const NowPlayingPanel()),
+          ),
+        ),
+      );
+}
+
+/// الراديو الكبير ومعاه شريط الوقت والتكرار والسرعة ومؤقت النوم
+class NowPlayingPanel extends StatelessWidget {
+  const NowPlayingPanel({super.key});
+
+  @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
-    final player = state.player;
+    final player = AppScope.of(context).player;
     return ListenableBuilder(
       listenable: player,
-      builder: (context, _) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const RetroRadio(),
-                    const SizedBox(height: 16),
-                    if (player.playback != null &&
-                        !player.isLive &&
-                        !player.continuousStream)
-                      const _SeekBar(),
-                    TextButton.icon(
-                      icon: const Icon(
-                        Icons.bedtime_outlined,
-                        color: Retro.brass,
-                      ),
-                      label: Text(
-                        player.sleepAt == null
-                            ? 'مؤقت النوم'
-                            : 'هيقف الساعة ${TimeOfDay.fromDateTime(player.sleepAt!).format(context)}',
-                        style: const TextStyle(color: Retro.brass),
-                      ),
-                      onPressed: () => showSleepTimerSheet(context, player),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const RetroRadio(),
+          const SizedBox(height: 16),
+          if (player.playback != null && !player.isLive && !player.continuousStream) const _SeekBar(),
+          const SizedBox(height: 8),
+          const PlayerExtras(),
+        ],
+      ),
     );
   }
 }
@@ -306,6 +294,93 @@ class _SeekBar extends StatelessWidget {
   }
 }
 
+/// تكرار السورة، والسرعة، ومؤقت النوم
+class PlayerExtras extends StatelessWidget {
+  const PlayerExtras({super.key});
+
+  static const speeds = [0.75, 1.0, 1.25, 1.5];
+
+  @override
+  Widget build(BuildContext context) {
+    final player = AppScope.of(context).player;
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, _) {
+        final moshaf = player.playback is MoshafPlayback && !player.continuousStream;
+        final sleeping = player.sleepAt != null || player.stopAtSurahEnd;
+        return Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (moshaf)
+              _Pill(
+                icon: Icons.repeat_one_rounded,
+                label: 'تكرار السورة',
+                active: player.repeatSurah,
+                onTap: () => player.setRepeatSurah(!player.repeatSurah),
+              ),
+            if (moshaf)
+              PopupMenuButton<double>(
+                tooltip: 'سرعة التلاوة',
+                color: Retro.panelHigh,
+                initialValue: player.speed,
+                onSelected: player.setSpeed,
+                itemBuilder: (_) => [
+                  for (final v in speeds) PopupMenuItem(value: v, child: Text(_speedLabel(v))),
+                ],
+                child: _Pill(icon: Icons.speed_rounded, label: _speedLabel(player.speed), active: player.speed != 1.0),
+              ),
+            _Pill(
+              icon: Icons.bedtime_outlined,
+              label: player.stopAtSurahEnd
+                  ? 'هيقف آخر السورة'
+                  : player.sleepAt == null
+                      ? 'مؤقت النوم'
+                      : 'هيقف ${TimeOfDay.fromDateTime(player.sleepAt!).format(context)}',
+              active: sleeping,
+              onTap: () => showSleepTimerSheet(context, player),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _speedLabel(double v) => v == 1.0 ? 'السرعة العادية' : '${v}x';
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.label, this.active = false, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? const Color(0xFF2A1A05) : Retro.brass;
+    final body = AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: active ? Retro.amberGlow : null,
+        color: active ? null : Retro.panel,
+        border: Border.all(color: active ? Colors.transparent : Retro.line),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 18, color: fg),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: fg, fontSize: 13, fontWeight: FontWeight.bold)),
+      ]),
+    );
+    if (onTap == null) return body;
+    return InkWell(borderRadius: BorderRadius.circular(20), onTap: onTap, child: body);
+  }
+}
+
 void showSleepTimerSheet(BuildContext context, PlayerController player) {
   const options = [15, 30, 45, 60, 90, 120];
   showModalBottomSheet(
@@ -315,6 +390,15 @@ void showSleepTimerSheet(BuildContext context, PlayerController player) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (player.playback is MoshafPlayback)
+            ListTile(
+              leading: const Icon(Icons.stop_circle_outlined),
+              title: const Text('لما السورة دي تخلص'),
+              onTap: () {
+                player.setStopAtSurahEnd(true);
+                Navigator.pop(ctx);
+              },
+            ),
           for (final m in options)
             ListTile(
               title: Text(
@@ -327,11 +411,12 @@ void showSleepTimerSheet(BuildContext context, PlayerController player) {
                 Navigator.pop(ctx);
               },
             ),
-          if (player.sleepAt != null)
+          if (player.sleepAt != null || player.stopAtSurahEnd)
             ListTile(
               leading: const Icon(Icons.timer_off_outlined),
               title: const Text('إلغاء المؤقت'),
               onTap: () {
+                player.setStopAtSurahEnd(false);
                 player.setSleepTimer(null);
                 Navigator.pop(ctx);
               },

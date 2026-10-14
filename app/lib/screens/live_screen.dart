@@ -7,6 +7,8 @@ import '../models.dart';
 import '../player.dart';
 import '../theme.dart';
 import 'retro_radio.dart';
+import 'favorites_screen.dart';
+import 'home_screen.dart';
 import 'ui.dart';
 
 class LiveScreen extends StatefulWidget {
@@ -65,6 +67,7 @@ class _LiveScreenState extends State<LiveScreen> {
     if (channels != null && _query.isNotEmpty) {
       channels = channels.where((c) => c.name.contains(_query)).toList();
     }
+    final wide = MediaQuery.sizeOf(context).width >= wideLayoutWidth;
     final station = catalog?.stationName.isNotEmpty == true
         ? catalog!.stationName
         : 'إذاعة أذكار المسلم';
@@ -100,12 +103,21 @@ class _LiveScreenState extends State<LiveScreen> {
                   trailing: const LiveDot(),
                 ),
               ),
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: Center(child: RetroRadio()),
+              if (state.player.playback == null && state.lastListen != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: ResumeCard(entry: state.lastListen!),
+                  ),
                 ),
-              ),
+              // على الشاشات العريضة الراديو ثابت على الجنب
+              if (!wide)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Center(child: RetroRadio()),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),

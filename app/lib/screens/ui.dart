@@ -208,3 +208,22 @@ class _LiveDotState extends State<LiveDot> with SingleTickerProviderStateMixin {
     ],
   );
 }
+
+/// عنوان قسم صغير جوه الصفحة
+class SectionTitle extends StatelessWidget {
+  const SectionTitle(this.text, {super.key, this.action});
+
+  final String text;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+        child: Row(
+          children: [
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+            ?action,
+          ],
+        ),
+      );
+}

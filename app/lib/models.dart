@@ -159,6 +159,13 @@ class Catalog {
   String surahName(int id) => _surahById[id]?.name ?? '$id';
   Moshaf? moshaf(int id) => _moshafById[id];
 
+  /// كل المصاحف اللي فيها السورة دي، بترتيب القراء
+  List<Moshaf> moshafsWithSurah(int surah) => [
+        for (final r in reciters)
+          for (final m in r.moshafs)
+            if (m.surahs.contains(surah)) m
+      ];
+
   factory Catalog.fromJson(Map<String, dynamic> j) => Catalog(
         isStatic: j['mode'] == 'static',
         channels: ((j['channels'] as List?) ?? const [])
