@@ -1,8 +1,20 @@
 # إذاعة أذكار المسلم
 
-إذاعة قرآن كريم لايف 24 ساعة، ومعاها مكتبة تختار منها الشيخ والرواية والسورة.
-كل حاجة مستضافة على سيرفرك (Oracle Cloud Always Free) من غير أي خدمة خارجية،
-وفيه تطبيق للأندرويد والويندوز، ونسخة ويب للآيفون تتضاف للشاشة الرئيسية.
+إذاعة قرآن كريم: بث مباشر 24 ساعة، واختيار أي شيخ بأي رواية وأي سورة.
+
+## اللينك
+
+**https://ottian.github.io/azkarelmuslim/**
+
+- شغال على GitHub Pages مجانًا، من غير أي سيرفر.
+- القراء والروايات والإذاعات اللايف (177 إذاعة) من [mp3quran.net](https://mp3quran.net)، والفهرس بيتحدث لوحده كل يوم ([pages.yml](.github/workflows/pages.yml)).
+- **الآيفون**: افتح اللينك في Safari ← زرار المشاركة ← **Add to Home Screen**.
+- **أندرويد وويندوز**: من صفحة [Releases](https://github.com/ottian/azkarelmuslim/releases) (بعد ما تعمل tag زي `v1.0.0`).
+
+## سيرفر خاص (اختياري)
+
+لو حبيت بعدين تستضيف التلاوات والبث بنفسك على Oracle Cloud، فولدر `server/` فيه كل حاجة،
+والتطبيق بيشتغل مع الاتنين: لو مفيش `SERVER_URL` بيستخدم GitHub Pages.
 
 ```
                 ┌──────────── سيرفر Oracle (Ubuntu 24.04 ARM) ────────────┐
@@ -25,7 +37,7 @@
 | `.github/workflows/` | بيبني التطبيقات تلقائي ويعمل Release |
 | `docs/` | خطوات إنشاء السيرفر على Oracle |
 
-## 1. تجهيز السيرفر
+## 1. تجهيز السيرفر (للسيرفر الخاص بس)
 
 1. اعمل السيرفر على Oracle بالخطوات اللي في [docs/oracle-instance.md](docs/oracle-instance.md).
 2. ادخل عليه بـ SSH ونزّل الريبو وشغّل التركيب:
@@ -81,7 +93,7 @@ sudo docker compose restart liquidsoap
 
 ### بناء التطبيقات
 GitHub Actions بيبني التطبيقات تلقائي. قبل أول بناء:
-- **Settings > Secrets and variables > Actions > Variables**: ضيف `SERVER_URL` بعنوان السيرفر (مثلًا `https://radio.example.com` أو `http://1.2.3.4`).
+- (للسيرفر الخاص بس) **Settings > Secrets and variables > Actions > Variables**: ضيف `SERVER_URL` بعنوان السيرفر. من غيره التطبيق بيستخدم GitHub Pages (مثلًا `https://radio.example.com` أو `http://1.2.3.4`).
 - (اختياري) مفتاح توقيع الأندرويد في الـ Secrets، التفاصيل في أول [apps.yml](.github/workflows/apps.yml). من غيره الـ APK بيتوقّع بمفتاح debug، وده بيشتغل عادي بس مينفعش يترفع على Google Play.
 
 علشان تطلع نسخة: اعمل tag

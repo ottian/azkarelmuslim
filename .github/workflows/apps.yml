@@ -5,7 +5,7 @@ name: Apps
 #   sudo ./scripts/update-app.sh
 #
 # الإعدادات (Settings > Secrets and variables > Actions):
-#   Variable  SERVER_URL                 عنوان السيرفر، مثلًا https://radio.example.com
+#   Variable  SERVER_URL                 (اختياري) سيرفر خاص. من غيره التطبيق بيستخدم GitHub Pages
 #   Secret    ANDROID_KEYSTORE_BASE64    (اختياري) مفتاح توقيع الأندرويد
 #   Secret    ANDROID_KEYSTORE_PASSWORD
 #   Secret    ANDROID_KEY_ALIAS
@@ -93,7 +93,7 @@ jobs:
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, the APK is signed with a debug key"
           fi
-      - run: flutter build apk --release --dart-define=SERVER_URL=${{ vars.SERVER_URL }}
+      - run: flutter build apk --release --dart-define=SERVER_URL=${{ vars.SERVER_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk ../azkar-android.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -110,7 +110,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - run: flutter build windows --release --dart-define=SERVER_URL=${{ vars.SERVER_URL }}
+      - run: flutter build windows --release --dart-define=SERVER_URL=${{ vars.SERVER_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
       - run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath ../azkar-windows.zip
         shell: pwsh
       - uses: actions/upload-artifact@v4

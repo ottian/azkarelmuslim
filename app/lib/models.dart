@@ -31,6 +31,7 @@ class Moshaf {
     required this.surahs,
     required this.durations,
     required this.reciter,
+    this.server,
   });
 
   final int id;
@@ -43,10 +44,16 @@ class Moshaf {
   final List<double> durations;
   final Reciter reciter;
 
+  /// في نسخة GitHub Pages: رابط فولدر الملفات على mp3quran
+  final String? server;
+
   String get label => rewayaName.isNotEmpty ? rewayaName : name;
 
-  String audioPath(int surah) =>
-      '/media/audio/$id/${surah.toString().padLeft(3, '0')}.mp3';
+  /// رابط ملف السورة: كامل (mp3quran) أو على سيرفرنا
+  String audioUrl(int surah) {
+    final file = '${surah.toString().padLeft(3, '0')}.mp3';
+    return server != null ? '$server$file' : '/media/audio/$id/$file';
+  }
 }
 
 class Reciter {
@@ -73,6 +80,7 @@ class Reciter {
             ? durations
             : List.filled(surahs.length, 0),
         reciter: r,
+        server: m['server'] as String?,
       ));
     }
     return r;
@@ -116,7 +124,7 @@ class LiveChannel {
         id: j['id'] as String,
         name: j['name'] as String,
         description: (j['description'] as String?) ?? '',
-        streamUrl: j['stream_url'] as String,
+        streamUrl: (j['stream_url'] as String?) ?? '/stream/${j['id']}',
         listeners: (j['listeners'] as int?) ?? 0,
         now: j['now'] is Map<String, dynamic>
             ? NowPlaying.fromJson(j['now'] as Map<String, dynamic>)
@@ -126,12 +134,17 @@ class LiveChannel {
 
 class Catalog {
   Catalog({
+    required this.isStatic,
+    required this.channels,
     required this.stationName,
     required this.riwayat,
     required this.suwar,
     required this.reciters,
   });
 
+  /// نسخة GitHub Pages: مفيش API، الصوت والإذاعات من mp3quran
+  final bool isStatic;
+  final List<LiveChannel> channels;
   final String stationName;
   final List<Rewaya> riwayat;
   final List<Surah> suwar;
@@ -147,6 +160,11 @@ class Catalog {
   Moshaf? moshaf(int id) => _moshafById[id];
 
   factory Catalog.fromJson(Map<String, dynamic> j) => Catalog(
+        isStatic: j['mode'] == 'static',
+        channels: ((j['channels'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(LiveChannel.fromJson)
+            .toList(),
         stationName: (j['station_name'] as String?) ?? '',
         riwayat: (j['riwayat'] as List)
             .cast<Map<String, dynamic>>()

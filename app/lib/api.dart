@@ -7,8 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// عنوان السيرفر بيتحدد وقت البناء:
-///   flutter build apk --dart-define=SERVER_URL=https://radio.example.com
-/// ونسخة الويب بتستخدم نفس الدومين اللي متفتحة منه.
+///   flutter build apk --dart-define=SERVER_URL=https://ottian.github.io/azkarelmuslim
+/// ونسخة الويب بتستخدم نفس العنوان اللي متفتحة منه.
+///
+/// العنوان ممكن يكون:
+///  - GitHub Pages: فيه catalog.json بس، والصوت والإذاعات من mp3quran
+///  - سيرفرنا (server/): فيه /api و /stream و /media
 const _buildServerUrl = String.fromEnvironment('SERVER_URL');
 const _serverKey = 'server_url';
 
@@ -19,7 +23,11 @@ class Api {
   final _client = http.Client();
 
   String get baseUrl {
-    if (kIsWeb) return Uri.base.origin;
+    if (kIsWeb) {
+      // فولدر الصفحة من غير الملف والـ query، مثلًا https://ottian.github.io/azkarelmuslim
+      final path = Uri.base.path;
+      return Uri.base.origin + path.substring(0, path.lastIndexOf('/'));
+    }
     final saved = _prefs.getString(_serverKey);
     if (saved != null && saved.isNotEmpty) return saved;
     return _buildServerUrl;
@@ -39,7 +47,11 @@ class Api {
     await _prefs.setString(_serverKey, clean);
   }
 
-  Uri url(String path) => Uri.parse('$baseUrl$path');
+  /// الروابط الكاملة بترجع زي ما هي، و "x" بتتحسب من فولدر التطبيق، و "/x" من أول الدومين
+  Uri url(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return Uri.parse(path);
+    return Uri.parse('$baseUrl/').resolve(path);
+  }
 
   Future<dynamic> _get(String path) async {
     final resp = await _client.get(url(path)).timeout(const Duration(seconds: 20));
@@ -49,13 +61,26 @@ class Api {
     return jsonDecode(utf8.decode(resp.bodyBytes));
   }
 
-  Future<Catalog> catalog() async =>
-      Catalog.fromJson(await _get('/api/catalog') as Map<String, dynamic>);
+  /// الأول بندور على catalog.json (GitHub Pages)، ولو مش موجود نسأل الـ API
+  Future<Catalog> catalog() async {
+    try {
+      final data = await _get('catalog.json');
+      if (data is Map<String, dynamic> && data['mode'] == 'static') {
+        return Catalog.fromJson(data);
+      }
+    } catch (_) {
+      // مش GitHub Pages
+    }
+    return Catalog.fromJson(await _get('/api/catalog') as Map<String, dynamic>);
+  }
 
-  Future<List<LiveChannel>> live() async => (await _get('/api/live') as List)
-      .cast<Map<String, dynamic>>()
-      .map(LiveChannel.fromJson)
-      .toList();
+  Future<List<LiveChannel>> live(Catalog? catalog) async {
+    if (catalog != null && catalog.isStatic) return catalog.channels;
+    return (await _get('/api/live') as List)
+        .cast<Map<String, dynamic>>()
+        .map(LiveChannel.fromJson)
+        .toList();
+  }
 }
 
 class ApiException implements Exception {

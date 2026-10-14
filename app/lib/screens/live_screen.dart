@@ -16,12 +16,15 @@ class LiveScreen extends StatefulWidget {
 class _LiveScreenState extends State<LiveScreen> {
   List<LiveChannel>? _channels;
   String? _error;
+  String _query = '';
   Timer? _timer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_timer == null) {
+    // بيتنادى تاني لما الفهرس يوصل
+    final catalog = AppScope.of(context).catalog;
+    if (_timer == null && catalog != null && !catalog.isStatic) {
       _refresh();
       _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
     }
@@ -34,8 +37,10 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   Future<void> _refresh() async {
+    final state = AppScope.of(context);
+    if (state.catalog == null) return state.loadCatalog();
     try {
-      final channels = await AppScope.of(context).api.live();
+      final channels = await state.api.live(state.catalog);
       if (mounted) {
         setState(() {
           _channels = channels;
@@ -50,22 +55,42 @@ class _LiveScreenState extends State<LiveScreen> {
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final channels = _channels;
+    final catalog = state.catalog;
+    final isStatic = catalog?.isStatic ?? false;
+    var channels = isStatic ? catalog!.channels : _channels;
+    if (channels != null && _query.isNotEmpty) {
+      channels = channels.where((c) => c.name.contains(_query)).toList();
+    }
     return Scaffold(
-      appBar: AppBar(title: Text(state.catalog?.stationName.isNotEmpty == true ? state.catalog!.stationName : 'إذاعة أذكار المسلم')),
+      appBar: AppBar(title: Text(catalog?.stationName.isNotEmpty == true ? catalog!.stationName : 'إذاعة أذكار المسلم')),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (_error != null && channels == null)
+            if (isStatic)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'ابحث في ${catalog!.channels.length} إذاعة',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                ),
+              ),
+            if (catalog == null && !state.loading)
+              _Message(text: state.catalogError ?? 'مش قادر يوصل للسيرفر', onRetry: state.loadCatalog)
+            else if (_error != null && channels == null)
               _Message(text: _error!, onRetry: _refresh)
             else if (channels == null)
               const Padding(padding: EdgeInsets.all(48), child: Center(child: CircularProgressIndicator()))
             else if (channels.isEmpty)
-              const _Message(text: 'مفيش قنوات شغالة لسه. شغّل استيراد التلاوات على السيرفر.')
+              _Message(text: _query.isNotEmpty ? 'مفيش نتايج' : 'مفيش قنوات شغالة لسه.')
             else
-              for (final ch in channels) _ChannelCard(channel: ch),
+              for (final ch in channels) _ChannelCard(channel: ch, showListeners: !isStatic),
           ],
         ),
       ),
@@ -74,9 +99,10 @@ class _LiveScreenState extends State<LiveScreen> {
 }
 
 class _ChannelCard extends StatelessWidget {
-  const _ChannelCard({required this.channel});
+  const _ChannelCard({required this.channel, required this.showListeners});
 
   final LiveChannel channel;
+  final bool showListeners;
 
   @override
   Widget build(BuildContext context) {
@@ -123,8 +149,10 @@ class _ChannelCard extends StatelessWidget {
                           Text('${now.title ?? ''} • ${now.artist ?? ''}', style: theme.textTheme.bodyMedium),
                           if (now.album != null) Text(now.album!, style: theme.textTheme.bodySmall),
                         ],
-                        const SizedBox(height: 4),
-                        Text('${channel.listeners} مستمع الآن', style: theme.textTheme.labelSmall),
+                        if (showListeners) ...[
+                          const SizedBox(height: 4),
+                          Text('${channel.listeners} مستمع الآن', style: theme.textTheme.labelSmall),
+                        ],
                       ],
                     ),
                   ),

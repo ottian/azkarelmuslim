@@ -68,5 +68,19 @@ class PlaylistTest(unittest.TestCase):
         self.assertIn("artist=\"a'b\"", line)
 
 
+class StaticCatalogTest(unittest.TestCase):
+    def test_static_catalog_keeps_audio_server_and_radios(self):
+        suwar = [{"id": i, "name": f"س{i}"} for i in range(1, 115)]
+        radios = [
+            {"id": 1, "name": " إذاعة ", "url": "https://backup.qurango.net/radio/x"},
+            {"id": 2, "name": "قديمة", "url": "http://insecure/radio"},
+        ]
+        cat = importer.build_static_catalog(RECITERS, RIWAYAT, suwar, radios)
+        self.assertEqual(cat["mode"], "static")
+        m = cat["reciters"][0]["moshafs"][0]
+        self.assertTrue(m["server"].endswith("/"))
+        self.assertEqual(cat["channels"], [{"id": "radio-1", "name": "إذاعة", "description": "", "stream_url": "https://backup.qurango.net/radio/x"}])
+
+
 if __name__ == "__main__":
     unittest.main()

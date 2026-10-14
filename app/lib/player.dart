@@ -49,7 +49,13 @@ class PlayerController extends ChangeNotifier {
   Timer? _reconnect;
 
   bool get isLive => playback is LivePlayback;
-  bool get continuousStream => kIsWeb;
+  /// على الويب مع سيرفرنا بنشغّل المصحف كبث واحد متصل (للآيفون).
+  /// في نسخة GitHub Pages مفيش سيرفر يوصّل الملفات، فبنشغّلها كقائمة.
+  bool get continuousStream => kIsWeb && catalog?.isStatic != true;
+
+  /// على الويب من غير سيرفرنا: ملف واحد في المرة، ولما يخلص نشغّل اللي بعده
+  /// (القوائم في just_audio على الويب مش شغالة مع التشغيل في الخلفية)
+  bool get _chainFiles => kIsWeb && !continuousStream;
 
   Future<void> playLive(LiveChannel channel) async {
     playback = LivePlayback(channel);
@@ -65,6 +71,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> playMoshaf(Moshaf moshaf, int surah) async {
+    // البث اللايف مالوش نهاية، لازم نقفله الأول وإلا المتصفح بيفضل مستني عليه
+    if (isLive) await player.stop();
     playback = MoshafPlayback(moshaf, surah);
     currentSurah = surah;
     final reciter = moshaf.reciter.name;
@@ -78,23 +86,27 @@ class PlayerController extends ChangeNotifier {
           album: 'إذاعة أذكار المسلم',
         ),
       ));
+    } else if (_chainFiles) {
+      await _load(_surahSource(moshaf, surah));
     } else {
       final sources = [
         for (final s in moshaf.surahs)
-          AudioSource.uri(
-            _api.url(moshaf.audioPath(s)),
-            tag: MediaItem(
-              id: 'moshaf-${moshaf.id}-$s',
-              title: 'سورة ${catalog?.surahName(s) ?? s}',
-              artist: reciter,
-              album: moshaf.label,
-            ),
-          ),
+          _surahSource(moshaf, s),
       ];
       final index = moshaf.surahs.indexOf(surah);
       await _load(null, sources: sources, initialIndex: index < 0 ? 0 : index);
     }
   }
+
+  AudioSource _surahSource(Moshaf moshaf, int surah) => AudioSource.uri(
+        _api.url(moshaf.audioUrl(surah)),
+        tag: MediaItem(
+          id: 'moshaf-${moshaf.id}-$surah',
+          title: 'سورة ${catalog?.surahName(surah) ?? surah}',
+          artist: moshaf.reciter.name,
+          album: moshaf.label,
+        ),
+      );
 
   Future<void> _load(AudioSource? source,
       {List<AudioSource>? sources, int initialIndex = 0}) async {
@@ -111,7 +123,8 @@ class PlayerController extends ChangeNotifier {
     } on PlayerException catch (e) {
       error = 'مش قادر يشغّل: ${e.message ?? e.code}';
       _scheduleReconnect();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('play failed: $e\n$st');
       error = 'مش قادر يشغّل: $e';
       _scheduleReconnect();
     }
@@ -122,6 +135,11 @@ class PlayerController extends ChangeNotifier {
     // البث اللايف مش المفروض يخلص، لو وقف (النت فصل) نرجّعه
     if (isLive && state.processingState == ProcessingState.completed) {
       _scheduleReconnect();
+    }
+    final p = playback;
+    if (_chainFiles && p is MoshafPlayback && state.processingState == ProcessingState.completed) {
+      final i = p.moshaf.surahs.indexOf(currentSurah ?? p.startSurah) + 1;
+      if (i > 0 && i < p.moshaf.surahs.length) playMoshaf(p.moshaf, p.moshaf.surahs[i]);
     }
     notifyListeners();
   }
@@ -139,7 +157,9 @@ class PlayerController extends ChangeNotifier {
     final p = playback;
     if (p is! MoshafPlayback) return;
     int? surah;
-    if (continuousStream) {
+    if (_chainFiles) {
+      surah = p.startSurah;
+    } else if (continuousStream) {
       // بنحسب السورة الحالية من الوقت ومدد السور
       final start = p.moshaf.surahs.indexOf(p.startSurah);
       var remaining = player.position.inMilliseconds / 1000.0;
@@ -179,7 +199,7 @@ class PlayerController extends ChangeNotifier {
     if (p is! MoshafPlayback || currentSurah == null) return;
     final i = p.moshaf.surahs.indexOf(currentSurah!) + delta;
     if (i < 0 || i >= p.moshaf.surahs.length) return;
-    if (continuousStream) {
+    if (kIsWeb) {
       await playMoshaf(p.moshaf, p.moshaf.surahs[i]);
     } else {
       await player.seek(Duration.zero, index: i);

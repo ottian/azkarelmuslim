@@ -1,0 +1,45 @@
+name: Pages
+
+# بينشر تطبيق الويب على GitHub Pages:
+#   https://ottian.github.io/azkarelmuslim/
+# وبيحدّث فهرس القراء والإذاعات من mp3quran كل يوم.
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", "server/api/importer.py", ".github/workflows/pages.yml"]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+# النسخة بتتنشر على فرع gh-pages، و GitHub Pages بيعرضه
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.7"
+          channel: stable
+          cache: true
+      - name: Build web app
+        working-directory: app
+        run: flutter build web --release --no-web-resources-cdn --base-href "/${{ github.event.repository.name }}/"
+      - name: Build catalog from mp3quran
+        run: python3 server/api/importer.py static --out app/build/web/catalog.json
+      - run: touch app/build/web/.nojekyll
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: app/build/web
+          force_orphan: true
+          commit_message: "نشر نسخة الويب"

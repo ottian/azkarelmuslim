@@ -31,10 +31,34 @@ void main() {
     });
     final m = catalog.moshaf(9)!;
     expect(m.reciter.name, 'الحصري');
-    expect(m.audioPath(2), '/media/audio/9/002.mp3');
+    expect(m.audioUrl(2), '/media/audio/9/002.mp3');
+    expect(catalog.isStatic, isFalse);
     expect(m.durations, [60.0, 7200.5]);
     expect(catalog.surahName(2), 'البقرة');
     expect(catalog.suwar.first.makkia, isTrue);
+  });
+
+  test('static catalog plays from the moshaf server and lists radios', () {
+    final catalog = Catalog.fromJson({
+      'mode': 'static',
+      'riwayat': [],
+      'suwar': [],
+      'reciters': [
+        {
+          'id': 1,
+          'name': 'x',
+          'moshafs': [
+            {'id': 2, 'name': 'y', 'rewaya_id': 1, 'server': 'https://cdn.example/r1/', 'surahs': [1]},
+          ],
+        },
+      ],
+      'channels': [
+        {'id': 'radio-1', 'name': 'r', 'stream_url': 'https://radio.example/a'},
+      ],
+    });
+    expect(catalog.isStatic, isTrue);
+    expect(catalog.moshaf(2)!.audioUrl(1), 'https://cdn.example/r1/001.mp3');
+    expect(catalog.channels.single.streamUrl, 'https://radio.example/a');
   });
 
   test('missing durations fall back to zeros', () {
