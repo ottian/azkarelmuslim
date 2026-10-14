@@ -7,7 +7,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["app/**", "server/api/importer.py", ".github/workflows/pages.yml"]
+    paths: ["app/**", "server/api/importer.py", "server/featured.json", ".github/workflows/pages.yml"]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
         working-directory: app
         run: flutter build web --release --no-web-resources-cdn --base-href "/${{ github.event.repository.name }}/"
       - name: Build catalog from mp3quran
-        run: python3 server/api/importer.py static --out app/build/web/catalog.json
+        run: python3 server/api/importer.py static --featured server/featured.json --out app/build/web/catalog.json
       - run: touch app/build/web/.nojekyll
       - uses: peaceiris/actions-gh-pages@v4
         with:

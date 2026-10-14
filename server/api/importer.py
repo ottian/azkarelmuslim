@@ -404,9 +404,21 @@ def cmd_playlists(_args) -> None:
     write_outputs(library, build_catalog(library, selection, riwayat, suwar))
 
 
-def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[dict], radios: list[dict]) -> dict:
+def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[dict], radios: list[dict],
+                         featured: dict | None = None) -> dict:
     """فهرس نسخة GitHub Pages: مفيش سيرفر خاص، فكل مصحف معاه رابط ملفاته
-    على mp3quran، والبث المباشر هو إذاعات mp3quran."""
+    على mp3quran، والبث المباشر هو إذاعات mp3quran.
+
+    لو featured موجود (server/featured.json) بناخد القراء والإذاعات اللي فيه بس، بنفس ترتيبه.
+    """
+    if featured:
+        order = {int(r["id"]): i for i, r in enumerate(featured.get("reciters", []))}
+        reciters = sorted((r for r in reciters if int(r["id"]) in order), key=lambda r: order[int(r["id"])])
+        missing = set(order) - {int(r["id"]) for r in reciters}
+        if missing:
+            print(f"  ! reciters not found on mp3quran: {sorted(missing)}", file=sys.stderr)
+        radio_order = {name.strip(): i for i, name in enumerate(featured.get("radios", []))}
+        radios = sorted((r for r in radios if r["name"].strip() in radio_order), key=lambda r: radio_order[r["name"].strip()])
     rewaya_names = {int(r["id"]): r["name"] for r in riwayat}
     out = []
     for reciter in reciters:
@@ -438,7 +450,7 @@ def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[
         "station_name": "إذاعة أذكار المسلم",
         "riwayat": [{"id": int(r["id"]), "name": r["name"]} for r in riwayat if int(r["id"]) in used],
         "suwar": [{"id": int(s["id"]), "name": s["name"], "makkia": int(s.get("makkia", 0))} for s in suwar],
-        "reciters": sorted(out, key=lambda r: r["name"]),
+        "reciters": out if featured else sorted(out, key=lambda r: r["name"]),
         "channels": channels,
     }
 
@@ -449,6 +461,7 @@ def cmd_static(args) -> None:
         fetch_json("riwayat")["riwayat"],
         fetch_json("suwar")["suwar"],
         fetch_json("radios")["radios"],
+        json.loads(Path(args.featured).read_text(encoding="utf-8")) if args.featured else None,
     )
     if len(catalog["reciters"]) < 10 or len(catalog["suwar"]) != 114:
         sys.exit("الفهرس ناقص، مش هنكتبه")
@@ -467,6 +480,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("playlists").set_defaults(func=cmd_playlists)
     p_static = sub.add_parser("static")
     p_static.add_argument("--out", required=True)
+    p_static.add_argument("--featured", help="server/featured.json: القراء والإذاعات اللي تظهر بس")
     p_static.set_defaults(func=cmd_static)
     args = parser.parse_args(argv)
     args.func(args)

@@ -81,6 +81,19 @@ class StaticCatalogTest(unittest.TestCase):
         self.assertTrue(m["server"].endswith("/"))
         self.assertEqual(cat["channels"], [{"id": "radio-1", "name": "إذاعة", "description": "", "stream_url": "https://backup.qurango.net/radio/x"}])
 
+    def test_featured_keeps_order_and_filters(self):
+        suwar = [{"id": i, "name": f"س{i}"} for i in range(1, 115)]
+        radios = [
+            {"id": 1, "name": "قارئ ورش", "url": "https://r/1"},
+            {"id": 2, "name": "تفسير", "url": "https://r/2"},
+            {"id": 3, "name": "العامة ", "url": "https://r/3"},
+        ]
+        featured = {"reciters": [{"id": 3}, {"id": 1}], "radios": ["العامة", "قارئ ورش"]}
+        cat = importer.build_static_catalog(RECITERS, RIWAYAT, suwar, radios, featured)
+        self.assertEqual([r["id"] for r in cat["reciters"]], [3, 1])
+        self.assertEqual(len(cat["reciters"][1]["moshafs"]), 2)  # كل روايات الشيخ
+        self.assertEqual([c["name"] for c in cat["channels"]], ["العامة", "قارئ ورش"])
+
 
 if __name__ == "__main__":
     unittest.main()

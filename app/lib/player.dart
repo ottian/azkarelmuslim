@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import 'api.dart';
+import 'media_session.dart';
 import 'models.dart';
 
 sealed class Playback {
@@ -47,6 +48,8 @@ class PlayerController extends ChangeNotifier {
   DateTime? sleepAt;
   Timer? _sleepTimer;
   Timer? _reconnect;
+  Playback? _advancedFrom;
+  bool _loading = false;
 
   bool get isLive => playback is LivePlayback;
   /// على الويب مع سيرفرنا بنشغّل المصحف كبث واحد متصل (للآيفون).
@@ -72,7 +75,7 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> playMoshaf(Moshaf moshaf, int surah) async {
     // البث اللايف مالوش نهاية، لازم نقفله الأول وإلا المتصفح بيفضل مستني عليه
-    if (isLive) await player.stop();
+    if (isLive && !kIsWeb) await player.stop();
     playback = MoshafPlayback(moshaf, surah);
     currentSurah = surah;
     final reciter = moshaf.reciter.name;
@@ -113,12 +116,22 @@ class PlayerController extends ChangeNotifier {
     _reconnect?.cancel();
     error = null;
     notifyListeners();
+    final requested = playback;
+    _loading = true;
     try {
+      if (kIsWeb) {
+        // على الويب لازم نقفل الصوت اللي شغال خالص قبل ما نحمّل الجديد،
+        // وإلا Safari ممكن يكمّل الملف أو البث القديم
+        await player.stop();
+        if (playback != requested) return; // المستخدم اختار حاجة تانية في الوقت ده
+        _updateWebMediaSession(source);
+      }
       if (source != null) {
         await player.setAudioSource(source);
       } else {
         await player.setAudioSources(sources!, initialIndex: initialIndex);
       }
+      _loading = false;
       unawaited(player.play());
     } on PlayerException catch (e) {
       error = 'مش قادر يشغّل: ${e.message ?? e.code}';
@@ -127,8 +140,23 @@ class PlayerController extends ChangeNotifier {
       debugPrint('play failed: $e\n$st');
       error = 'مش قادر يشغّل: $e';
       _scheduleReconnect();
+    } finally {
+      if (playback == requested) _loading = false;
     }
     notifyListeners();
+  }
+
+  void _updateWebMediaSession(AudioSource? source) {
+    final item = source is UriAudioSource ? source.tag as MediaItem? : null;
+    if (item == null) return;
+    final moshaf = playback is MoshafPlayback;
+    setMediaSession(
+      title: item.title,
+      artist: item.artist ?? '',
+      album: item.album ?? '',
+      onNext: moshaf ? next : null,
+      onPrevious: moshaf ? previous : null,
+    );
   }
 
   void _onState(PlayerState state) {
@@ -137,7 +165,10 @@ class PlayerController extends ChangeNotifier {
       _scheduleReconnect();
     }
     final p = playback;
-    if (_chainFiles && p is MoshafPlayback && state.processingState == ProcessingState.completed) {
+    // "خلص" ممكن توصل أكتر من مرة لنفس الملف، فبننتقل مرة واحدة بس
+    if (_chainFiles && p is MoshafPlayback && state.processingState == ProcessingState.completed &&
+        !_loading && _advancedFrom != p) {
+      _advancedFrom = p;
       final i = p.moshaf.surahs.indexOf(currentSurah ?? p.startSurah) + 1;
       if (i > 0 && i < p.moshaf.surahs.length) playMoshaf(p.moshaf, p.moshaf.surahs[i]);
     }

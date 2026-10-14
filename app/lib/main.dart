@@ -15,8 +15,10 @@ Future<void> main() async {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
     // ويندوز: التشغيل عن طريق media_kit، وبيكمل لو التطبيق متصغّر
     JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
-  } else {
-    // أندرويد وويب (الآيفون): تشغيل في الخلفية وأزرار في شاشة القفل
+  } else if (!kIsWeb) {
+    // أندرويد: تشغيل في الخلفية وأزرار في الإشعارات وشاشة القفل.
+    // الويب (الآيفون) بيشغّل بعنصر الصوت بتاع المتصفح مباشرة، وأزرار شاشة
+    // القفل بنعملها في media_session_web.dart
     await JustAudioBackground.init(
       androidNotificationChannelId: 'com.azkarelmuslim.radio.playback',
       androidNotificationChannelName: 'إذاعة أذكار المسلم',
