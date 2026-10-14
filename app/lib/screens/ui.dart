@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_state.dart';
 import '../theme.dart';
 
 /// عنوان الصفحة الكبير اللي فوق
@@ -110,16 +111,28 @@ class GlowCard extends StatelessWidget {
 
 /// أول حرف من اسم الشيخ في دايرة نحاسية
 class Monogram extends StatelessWidget {
-  const Monogram({super.key, required this.name, this.size = 48});
+  const Monogram({super.key, required this.name, this.size = 48, this.photo});
 
   final String name;
   final double size;
+
+  /// صورة الشيخ، ولو مش موجودة أو فشلت بيظهر أول حرف من اسمه
+  final String? photo;
 
   @override
   Widget build(BuildContext context) {
     final letter = name.isEmpty ? '' : name.characters.first;
     final hue = (name.hashCode % 40).toDouble();
     final inner = HSLColor.fromAHSL(1, 20 + hue, 0.45, 0.22).toColor();
+    final letterView = Center(child: Text(
+          letter,
+          style: TextStyle(
+            color: Retro.cream,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.42,
+            height: 1.1,
+          ),
+        ));
     return Container(
       width: size,
       height: size,
@@ -144,15 +157,18 @@ class Monogram extends StatelessWidget {
             colors: [Color.lerp(inner, Colors.white, 0.12)!, inner],
           ),
         ),
-        child: Text(
-          letter,
-          style: TextStyle(
-            color: Retro.cream,
-            fontWeight: FontWeight.bold,
-            fontSize: size * 0.42,
-            height: 1.1,
-          ),
-        ),
+        child: photo == null
+            ? letterView
+            : ClipOval(
+                child: Image.network(
+                  AppScope.of(context).api.url(photo!).toString(),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  cacheWidth: (size * 3).round(),
+                  errorBuilder: (_, _, _) => letterView,
+                ),
+              ),
       ),
     );
   }

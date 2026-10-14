@@ -7,6 +7,7 @@ import '../models.dart';
 import '../player.dart';
 import '../theme.dart';
 import 'retro_radio.dart';
+import 'search_screen.dart';
 import 'favorites_screen.dart';
 import 'home_screen.dart';
 import 'ui.dart';
@@ -22,6 +23,7 @@ class _LiveScreenState extends State<LiveScreen> {
   List<LiveChannel>? _channels;
   String? _error;
   String _query = '';
+  String _group = '';
   Timer? _timer;
 
   @override
@@ -64,8 +66,15 @@ class _LiveScreenState extends State<LiveScreen> {
     final isStatic = catalog?.isStatic ?? false;
     final all = isStatic ? catalog!.channels : _channels;
     var channels = all;
+    final groups = <String>{
+      for (final c in all ?? const <LiveChannel>[])
+        if (c.group.isNotEmpty) c.group,
+    }.toList()..sort((a, b) => _groupOrder(a).compareTo(_groupOrder(b)));
+    if (channels != null && _group.isNotEmpty) {
+      channels = channels.where((c) => c.group == _group).toList();
+    }
     if (channels != null && _query.isNotEmpty) {
-      channels = channels.where((c) => c.name.contains(_query)).toList();
+      channels = channels.where((c) => matchesQuery(c.name, _query)).toList();
     }
     final wide = MediaQuery.sizeOf(context).width >= wideLayoutWidth;
     final station = catalog?.stationName.isNotEmpty == true
@@ -100,7 +109,10 @@ class _LiveScreenState extends State<LiveScreen> {
                 child: PageHeader(
                   title: station,
                   subtitle: 'قرآن كريم على مدار الساعة',
-                  trailing: const LiveDot(),
+                  trailing: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [LiveDot(), SizedBox(width: 12), SearchButton()],
+                  ),
                 ),
               ),
               if (state.player.playback == null && state.lastListen != null)
@@ -168,6 +180,28 @@ class _LiveScreenState extends State<LiveScreen> {
                     ),
                   ),
                 ),
+              if (groups.length > 1)
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 48,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      children: [
+                        for (final g in ['', ...groups])
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 8),
+                            child: ChoiceChip(
+                              label: Text(g.isEmpty ? 'الكل' : g == 'مصر' ? 'إذاعات مصر' : g == 'القراء' ? 'إذاعات القراء' : 'إذاعات عامة'),
+                              showCheckmark: false,
+                              selected: _group == g,
+                              onSelected: (_) => setState(() => _group = g),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               if (status != null)
                 SliverToBoxAdapter(child: status)
               else
@@ -197,6 +231,12 @@ class _LiveScreenState extends State<LiveScreen> {
     );
   }
 }
+
+int _groupOrder(String g) => switch (g) {
+  'مصر' => 0,
+  'عامة' => 1,
+  _ => 2,
+};
 
 class _ChannelCard extends StatelessWidget {
   const _ChannelCard({

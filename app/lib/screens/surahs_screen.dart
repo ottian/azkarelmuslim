@@ -8,6 +8,7 @@ import 'player_widgets.dart';
 import 'reciter_screen.dart';
 import 'reciters_screen.dart';
 import 'retro_radio.dart';
+import 'search_screen.dart';
 import 'ui.dart';
 
 /// تختار السورة الأول، وبعدين الشيخ اللي يقرأها
@@ -33,14 +34,14 @@ class _SurahsScreenState extends State<SurahsScreen> {
     final suwar = catalog.suwar.where((s) {
       if (_makkia != null && s.makkia != _makkia) return false;
       if (q.isEmpty) return true;
-      return s.name.contains(q) || '${s.id}' == q;
+      return matchesQuery(s.name, q) || '${s.id}' == q;
     }).toList();
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            PageHeader(title: 'السور', subtitle: '${catalog.suwar.length} سورة بأصوات أشهر القراء'),
+            PageHeader(title: 'السور', subtitle: '${catalog.suwar.length} سورة بأصوات أشهر القراء', trailing: const SearchButton()),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
@@ -223,7 +224,7 @@ class SurahScreen extends StatelessWidget {
                       onTap: () => active ? player.toggle() : player.playMoshaf(m, surah.id),
                       child: Row(
                         children: [
-                          Monogram(name: m.reciter.name, size: 44),
+                          Monogram(photo: m.reciter.photo, name: m.reciter.name, size: 44),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(

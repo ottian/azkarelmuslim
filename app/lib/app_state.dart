@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'models.dart';
 import 'player.dart';
+import 'prayer/prayer_controller.dart';
 
 const _favoritesKey = 'favorite_moshafs';
 const _historyKey = 'listen_history';
@@ -40,6 +41,10 @@ class ListenEntry {
 class AppState extends ChangeNotifier {
   AppState(this.prefs) : api = Api(prefs) {
     player = PlayerController(api);
+    prayer = PrayerController(prefs, player);
+    // الشاشات بتقرا المواقيت من AppScope، فأي تغيير فيها لازم يوصلها
+    prayer.addListener(notifyListeners);
+    prayer.start();
     favorites = (prefs.getStringList(_favoritesKey) ?? const [])
         .map(int.tryParse)
         .whereType<int>()
@@ -114,6 +119,7 @@ class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   final Api api;
   late final PlayerController player;
+  late final PrayerController prayer;
   late Set<int> favorites;
 
   Catalog? catalog;
@@ -128,6 +134,9 @@ class AppState extends ChangeNotifier {
     try {
       catalog = await api.catalog();
       player.catalog = catalog;
+      final c = catalog!;
+      prayer.surahName = c.surahName;
+      prayer.reschedule();
     } catch (e) {
       catalogError = 'مش قادر يوصل للسيرفر ($e)';
     }

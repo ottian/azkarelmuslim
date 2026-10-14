@@ -7,7 +7,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["app/**", "server/api/importer.py", "server/featured.json", ".github/workflows/pages.yml"]
+    paths: ["app/**", "server/api/importer.py", "server/featured.json", "server/photos/**", ".github/workflows/pages.yml"]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -33,6 +33,8 @@ jobs:
       - name: Build web app
         working-directory: app
         run: flutter build web --release --no-web-resources-cdn --base-href "/${{ github.event.repository.name }}/"
+      # صور القراء (scripts/fetch_media.py) بتتنشر جنب الفهرس
+      - run: cp -r server/photos app/build/web/photos
       - name: Build catalog from mp3quran
         run: python3 server/api/importer.py static --featured server/featured.json --out app/build/web/catalog.json
       - run: touch app/build/web/.nojekyll

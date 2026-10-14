@@ -4,6 +4,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'reciter_screen.dart';
+import 'search_screen.dart';
 import 'ui.dart';
 
 class RecitersScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _RecitersScreenState extends State<RecitersScreen> {
                     title: 'القراء',
                     subtitle:
                         'أشهر ${catalog.reciters.length} قارئ بكل رواياتهم',
+                    trailing: const SearchButton(),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -76,7 +78,7 @@ class _RecitersScreenState extends State<RecitersScreen> {
 
   Widget _list(Catalog catalog) {
     final reciters = catalog.reciters.where((r) {
-      if (_query.isNotEmpty && !r.name.contains(_query)) return false;
+      if (_query.isNotEmpty && !matchesQuery(r.name, _query)) return false;
       if (_rewaya != null && !r.moshafs.any((m) => m.rewayaId == _rewaya)) {
         return false;
       }
@@ -116,7 +118,7 @@ class _RecitersScreenState extends State<RecitersScreen> {
               children: [
                 Hero(
                   tag: 'reciter-${r.id}',
-                  child: Monogram(name: r.name),
+                  child: Monogram(photo: r.photo, name: r.name),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

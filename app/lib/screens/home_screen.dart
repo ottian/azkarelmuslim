@@ -6,6 +6,7 @@ import 'live_screen.dart';
 import 'player_widgets.dart';
 import 'reciters_screen.dart';
 import 'settings_screen.dart';
+import 'prayer_screen.dart';
 import 'surahs_screen.dart';
 import '../theme.dart';
 
@@ -23,16 +24,20 @@ class _HomeScreenState extends State<HomeScreen> {
     (Icons.radio_outlined, Icons.radio, 'مباشر'),
     (Icons.menu_book_outlined, Icons.menu_book_rounded, 'السور'),
     (Icons.mic_none_rounded, Icons.mic_rounded, 'القراء'),
+    (Icons.mosque_outlined, Icons.mosque_rounded, 'الصلاة'),
     (Icons.library_music_outlined, Icons.library_music_rounded, 'مكتبتي'),
     (Icons.tune_outlined, Icons.tune_rounded, 'الإعدادات'),
   ];
+
+  /// على الموبايل الإعدادات من زرار في "مكتبتي"، فالشريط اللي تحت فيه 5 بس
+  static const _mobileTabs = 5;
 
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
     if (!state.api.isConfigured) return const SettingsScreen(firstRun: true);
 
-    const pages = [LiveScreen(), SurahsScreen(), RecitersScreen(), FavoritesScreen(), SettingsScreen()];
+    const pages = [LiveScreen(), SurahsScreen(), RecitersScreen(), PrayerScreen(), FavoritesScreen(), SettingsScreen()];
     final body = IndexedStack(index: _tab, children: pages);
     final width = MediaQuery.sizeOf(context).width;
 
@@ -90,10 +95,10 @@ class _HomeScreenState extends State<HomeScreen> {
           // في صفحة المباشر الراديو الكبير ظاهر فوق، فمش محتاجين الشريط
           if (_tab != 0) const MiniPlayer(),
           NavigationBar(
-            selectedIndex: _tab,
+            selectedIndex: _tab.clamp(0, _mobileTabs - 1),
             onDestinationSelected: (i) => setState(() => _tab = i),
             destinations: [
-              for (final (icon, selected, label) in _destinations)
+              for (final (icon, selected, label) in _destinations.take(_mobileTabs))
                 NavigationDestination(icon: Icon(icon), selectedIcon: Icon(selected), label: label),
             ],
           ),

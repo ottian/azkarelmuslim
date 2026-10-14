@@ -79,7 +79,7 @@ class StaticCatalogTest(unittest.TestCase):
         self.assertEqual(cat["mode"], "static")
         m = cat["reciters"][0]["moshafs"][0]
         self.assertTrue(m["server"].endswith("/"))
-        self.assertEqual(cat["channels"], [{"id": "radio-1", "name": "إذاعة", "description": "", "stream_url": "https://backup.qurango.net/radio/x"}])
+        self.assertEqual(cat["channels"], [{"id": "radio-1", "name": "إذاعة", "description": "", "stream_url": "https://backup.qurango.net/radio/x", "group": "القراء"}])
 
     def test_featured_keeps_order_and_filters(self):
         suwar = [{"id": i, "name": f"س{i}"} for i in range(1, 115)]
@@ -93,6 +93,24 @@ class StaticCatalogTest(unittest.TestCase):
         self.assertEqual([r["id"] for r in cat["reciters"]], [3, 1])
         self.assertEqual(len(cat["reciters"][1]["moshafs"]), 2)  # كل روايات الشيخ
         self.assertEqual([c["name"] for c in cat["channels"]], ["العامة", "قارئ ورش"])
+
+    def test_extra_channels_groups_and_photos(self):
+        suwar = [{"id": i, "name": f"س{i}"} for i in range(1, 115)]
+        radios = [
+            {"id": 1, "name": "قارئ ورش", "url": "https://r/1"},
+            {"id": 3, "name": "العامة", "url": "https://r/3"},
+        ]
+        featured = {
+            "reciters": [{"id": 1}],
+            "radios": ["العامة", "قارئ ورش"],
+            "general_radios": ["العامة"],
+            "egypt_radios": ["قارئ ورش"],
+            "extra_channels": [{"id": "egypt-cairo", "name": "القاهرة", "group": "مصر", "stream_url": "https://cairo"}],
+        }
+        cat = importer.build_static_catalog(RECITERS, RIWAYAT, suwar, radios, featured, {1: "photos/1.jpg"})
+        self.assertEqual([(c["name"], c["group"]) for c in cat["channels"]],
+                         [("القاهرة", "مصر"), ("العامة", "عامة"), ("قارئ ورش", "مصر")])
+        self.assertEqual(cat["reciters"][0]["photo"], "photos/1.jpg")
 
 
 if __name__ == "__main__":

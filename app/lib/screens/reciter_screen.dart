@@ -82,7 +82,7 @@ class _ReciterScreenState extends State<ReciterScreen> {
                   children: [
                     Hero(
                       tag: 'reciter-${widget.reciter.id}',
-                      child: Monogram(name: widget.reciter.name, size: 76),
+                      child: Monogram(photo: widget.reciter.photo, name: widget.reciter.name, size: 76),
                     ),
                     const SizedBox(height: 10),
                     Text(

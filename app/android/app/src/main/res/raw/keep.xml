@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- صوت الأذان بيتنادى بالاسم من إشعار الصلاة، فلازم ميتشالش وقت تصغير الحزمة -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/adhan" />

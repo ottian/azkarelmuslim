@@ -19,6 +19,9 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.6
   web: ^1.1.0
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
+  geolocator: ^14.1.1
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +30,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/data/
+    # الأذان: بيتنزّل وقت البناء (scripts/fetch_adhan.sh)، علشان كده الفولدر بس
+    - assets/audio/
   fonts:
     - family: NotoSansArabic
       fonts:

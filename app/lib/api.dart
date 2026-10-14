@@ -74,6 +74,10 @@ class Api {
     return Catalog.fromJson(await _get('/api/catalog') as Map<String, dynamic>);
   }
 
+  /// أصحاب صور القراء ورخصها (scripts/fetch_media.py)
+  Future<Map<String, dynamic>> photoCredits() async =>
+      (await _get('photos/credits.json') as Map).cast<String, dynamic>();
+
   Future<List<LiveChannel>> live(Catalog? catalog) async {
     if (catalog != null && catalog.isStatic) return catalog.channels;
     return (await _get('/api/live') as List)

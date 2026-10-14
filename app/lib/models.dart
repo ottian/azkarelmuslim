@@ -57,14 +57,17 @@ class Moshaf {
 }
 
 class Reciter {
-  Reciter({required this.id, required this.name});
+  Reciter({required this.id, required this.name, this.photo});
 
   final int id;
   final String name;
+
+  /// صورة الشيخ (مسار جنب الفهرس) لو موجودة
+  final String? photo;
   final List<Moshaf> moshafs = [];
 
   factory Reciter.fromJson(Map<String, dynamic> j) {
-    final r = Reciter(id: j['id'] as int, name: j['name'] as String);
+    final r = Reciter(id: j['id'] as int, name: j['name'] as String, photo: j['photo'] as String?);
     for (final m in (j['moshafs'] as List).cast<Map<String, dynamic>>()) {
       final surahs = (m['surahs'] as List).cast<int>();
       final durations = ((m['durations'] as List?) ?? const [])
@@ -110,6 +113,7 @@ class LiveChannel {
     required this.description,
     required this.streamUrl,
     required this.listeners,
+    this.group = '',
     this.now,
   });
 
@@ -118,6 +122,9 @@ class LiveChannel {
   final String description;
   final String streamUrl;
   final int listeners;
+
+  /// مصر، عامة، القراء (في نسخة GitHub Pages)
+  final String group;
   final NowPlaying? now;
 
   factory LiveChannel.fromJson(Map<String, dynamic> j) => LiveChannel(
@@ -126,6 +133,7 @@ class LiveChannel {
         description: (j['description'] as String?) ?? '',
         streamUrl: (j['stream_url'] as String?) ?? '/stream/${j['id']}',
         listeners: (j['listeners'] as int?) ?? 0,
+        group: (j['group'] as String?) ?? '',
         now: j['now'] is Map<String, dynamic>
             ? NowPlaying.fromJson(j['now'] as Map<String, dynamic>)
             : null,

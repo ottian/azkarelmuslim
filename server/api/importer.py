@@ -405,12 +405,14 @@ def cmd_playlists(_args) -> None:
 
 
 def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[dict], radios: list[dict],
-                         featured: dict | None = None) -> dict:
+                         featured: dict | None = None, photos: dict[int, str] | None = None) -> dict:
     """فهرس نسخة GitHub Pages: مفيش سيرفر خاص، فكل مصحف معاه رابط ملفاته
     على mp3quran، والبث المباشر هو إذاعات mp3quran.
 
     لو featured موجود (server/featured.json) بناخد القراء والإذاعات اللي فيه بس، بنفس ترتيبه.
+    photos: رقم الشيخ -> مسار صورته جنب الفهرس (scripts/fetch_media.py بينزّلها).
     """
+    photos = photos or {}
     if featured:
         order = {int(r["id"]): i for i, r in enumerate(featured.get("reciters", []))}
         reciters = sorted((r for r in reciters if int(r["id"]) in order), key=lambda r: order[int(r["id"])])
@@ -437,10 +439,26 @@ def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[
                 "surahs": surahs,
             })
         if moshafs:
-            out.append({"id": int(reciter["id"]), "name": reciter["name"], "moshafs": moshafs})
+            entry = {"id": int(reciter["id"]), "name": reciter["name"], "moshafs": moshafs}
+            if int(reciter["id"]) in photos:
+                entry["photo"] = photos[int(reciter["id"])]
+            out.append(entry)
     used = {m["rewaya_id"] for r in out for m in r["moshafs"]}
+    egypt = {n.strip() for n in (featured or {}).get("egypt_radios", [])}
+    general = {n.strip() for n in (featured or {}).get("general_radios", [])}
+
+    def group(name: str) -> str:
+        return "مصر" if name in egypt else "عامة" if name in general else "القراء"
+
+    # إذاعات من بره mp3quran (زي إذاعة القرآن الكريم من القاهرة) بتيجي الأول
     channels = [
-        {"id": f"radio-{r['id']}", "name": r["name"].strip(), "description": "", "stream_url": r["url"]}
+        {"id": c["id"], "name": c["name"], "description": "", "stream_url": c["stream_url"], "group": c.get("group", "")}
+        for c in (featured or {}).get("extra_channels", [])
+        if str(c.get("stream_url", "")).startswith("https://")
+    ]
+    channels += [
+        {"id": f"radio-{r['id']}", "name": r["name"].strip(), "description": "", "stream_url": r["url"],
+         "group": group(r["name"].strip())}
         for r in radios
         if str(r.get("url", "")).startswith("https://")
     ]
@@ -455,6 +473,13 @@ def build_static_catalog(reciters: list[dict], riwayat: list[dict], suwar: list[
     }
 
 
+def local_photos(folder: Path) -> dict[int, str]:
+    """الصور اللي scripts/fetch_media.py نزّلها جنب الفهرس: photos/<رقم الشيخ>.jpg"""
+    if not folder.is_dir():
+        return {}
+    return {int(f.stem): f"photos/{f.name}" for f in folder.iterdir() if f.stem.isdigit()}
+
+
 def cmd_static(args) -> None:
     catalog = build_static_catalog(
         fetch_json("reciters")["reciters"],
@@ -462,6 +487,7 @@ def cmd_static(args) -> None:
         fetch_json("suwar")["suwar"],
         fetch_json("radios")["radios"],
         json.loads(Path(args.featured).read_text(encoding="utf-8")) if args.featured else None,
+        local_photos(Path(args.out).parent / "photos"),
     )
     if len(catalog["reciters"]) < 10 or len(catalog["suwar"]) != 114:
         sys.exit("الفهرس ناقص، مش هنكتبه")

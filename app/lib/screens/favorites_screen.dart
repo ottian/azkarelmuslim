@@ -4,7 +4,9 @@ import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'reciter_screen.dart';
+import 'home_screen.dart';
 import 'reciters_screen.dart';
+import 'settings_screen.dart';
 import 'ui.dart';
 
 /// مكتبتي: كمّل من حيث وقفت، وآخر اللي سمعته، والمفضلة
@@ -25,7 +27,19 @@ class FavoritesScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           children: [
-            const PageHeader(title: 'مكتبتي', subtitle: 'اللي سمعته واللي بتحبه'),
+            PageHeader(
+              title: 'مكتبتي',
+              subtitle: 'اللي سمعته واللي بتحبه',
+              trailing: MediaQuery.sizeOf(context).width >= wideLayoutWidth
+                  ? null
+                  : IconButton(
+                      tooltip: 'الإعدادات',
+                      icon: const Icon(Icons.settings_outlined, color: Retro.brass),
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(standalone: true),
+                      )),
+                    ),
+            ),
             if (last != null) ResumeCard(entry: last, large: true),
             if (history.length > 1) ...[
               SectionTitle(
@@ -52,7 +66,7 @@ class FavoritesScreen extends StatelessWidget {
                 )),
                 child: Row(
                   children: [
-                    Monogram(name: m.reciter.name),
+                    Monogram(photo: m.reciter.photo, name: m.reciter.name),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -96,7 +110,7 @@ class _HistoryTile extends StatelessWidget {
       onTap: () => state.resume(entry),
       child: Row(
         children: [
-          Monogram(name: m.reciter.name, size: 40),
+          Monogram(photo: m.reciter.photo, name: m.reciter.name, size: 40),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -151,7 +165,7 @@ class ResumeCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Monogram(name: m.reciter.name, size: large ? 52 : 42),
+                    Monogram(photo: m.reciter.photo, name: m.reciter.name, size: large ? 52 : 42),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
