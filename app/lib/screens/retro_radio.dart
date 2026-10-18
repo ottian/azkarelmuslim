@@ -71,13 +71,22 @@ class _PlayingAnimatorState extends State<PlayingAnimator>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _sub ??= AppScope.of(
-      context,
-    ).player.player.playerStateStream.listen(_onState);
+    if (_sub == null) {
+      _controller = AppScope.of(context).player;
+      _sub = _controller!.player.playerStateStream.listen((_) => _onState());
+      _controller!.waiting.addListener(_onState);
+    }
   }
 
-  void _onState(PlayerState s) {
-    final active = s.playing && s.processingState == ProcessingState.ready;
+  PlayerController? _controller;
+
+  void _onState() {
+    final c = _controller!;
+    final s = c.player.playerState;
+    final active = s.playing &&
+        s.processingState != ProcessingState.idle &&
+        s.processingState != ProcessingState.completed &&
+        !c.waiting.value;
     if (active) {
       if (!_clock.isAnimating) _clock.repeat();
       _energy.forward();
@@ -89,6 +98,7 @@ class _PlayingAnimatorState extends State<PlayingAnimator>
   @override
   void dispose() {
     _sub?.cancel();
+    _controller?.waiting.removeListener(_onState);
     _clock.dispose();
     _energy.dispose();
     super.dispose();
@@ -776,11 +786,9 @@ class _PlayButton extends StatelessWidget {
       builder: (context, snap) {
         final s = snap.data;
         final playing = s?.playing ?? false;
-        final loading =
-            playing &&
-            (s?.processingState == ProcessingState.loading ||
-                s?.processingState == ProcessingState.buffering);
-        return Tooltip(
+        return ValueListenableBuilder<bool>(
+          valueListenable: player.waiting,
+          builder: (context, loading, _) => Tooltip(
           message: playing ? 'إيقاف مؤقت' : 'تشغيل',
           child: GestureDetector(
             onTap: player.playback == null ? onIdleTap : player.toggle,
@@ -832,6 +840,7 @@ class _PlayButton extends StatelessWidget {
                     ),
             ),
           ),
+        ),
         );
       },
     );

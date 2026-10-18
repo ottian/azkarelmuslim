@@ -32,9 +32,30 @@ class PlayerController extends ChangeNotifier {
   PlayerController(this._api) {
     _subs.add(player.playerStateStream.listen(_onState));
     _subs.add(player.currentIndexStream.listen((_) => _updateSurah()));
-    _subs.add(player.positionStream.listen((_) {
+    _subs.add(player.positionStream.listen((pos) {
       if (kIsWeb) _updateSurah();
+      if (pos > _lastPos) _lastProgress = DateTime.now();
+      _lastPos = pos;
+      _updateWaiting();
     }));
+    _waitCheck = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      if (player.playing || waiting.value) _updateWaiting();
+    });
+  }
+
+  /// الصوت مستني يحمّل فعلا. المشغل ساعات بيفضل يقول "بيحمّل" في البث
+  /// اللايف والصوت شغال عادي، فبنعتمد كمان على إن مكان التشغيل بيتحرك.
+  final ValueNotifier<bool> waiting = ValueNotifier(false);
+  Duration _lastPos = Duration.zero;
+  DateTime _lastProgress = DateTime(2000);
+  Timer? _waitCheck;
+
+  void _updateWaiting() {
+    final s = player.playerState;
+    final pending = s.playing &&
+        (s.processingState == ProcessingState.loading || s.processingState == ProcessingState.buffering);
+    final moving = DateTime.now().difference(_lastProgress) < const Duration(milliseconds: 1500);
+    waiting.value = pending && !moving;
   }
 
   final Api _api;
@@ -171,6 +192,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   void _onState(PlayerState state) {
+    _updateWaiting();
     // البث اللايف مش المفروض يخلص، لو وقف (النت فصل) نرجّعه
     if (isLive && state.processingState == ProcessingState.completed) {
       _scheduleReconnect();
@@ -313,6 +335,8 @@ class PlayerController extends ChangeNotifier {
     }
     _sleepTimer?.cancel();
     _reconnect?.cancel();
+    _waitCheck?.cancel();
+    waiting.dispose();
     player.dispose();
     super.dispose();
   }

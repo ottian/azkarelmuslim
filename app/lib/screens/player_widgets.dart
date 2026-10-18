@@ -135,30 +135,32 @@ class PlayPauseButton extends StatelessWidget {
       stream: player.player.playerStateStream,
       builder: (context, snap) {
         final s = snap.data;
-        final loading =
-            s?.processingState == ProcessingState.loading ||
-            s?.processingState == ProcessingState.buffering;
-        if (loading && s?.playing == true) {
-          return SizedBox(
-            width: size + 16,
-            height: size + 16,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-          );
-        }
-        final playing = s?.playing ?? false;
-        return IconButton(
-          iconSize: size,
-          tooltip: playing ? 'إيقاف مؤقت' : 'تشغيل',
-          color: Retro.amber,
-          icon: Icon(
-            playing
-                ? Icons.pause_circle_filled_rounded
-                : Icons.play_circle_fill_rounded,
-          ),
-          onPressed: player.toggle,
+        return ValueListenableBuilder<bool>(
+          valueListenable: player.waiting,
+          builder: (context, loading, _) {
+            if (loading) {
+              return SizedBox(
+                width: size + 16,
+                height: size + 16,
+                child: const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              );
+            }
+            final playing = s?.playing ?? false;
+            return IconButton(
+              iconSize: size,
+              tooltip: playing ? 'إيقاف مؤقت' : 'تشغيل',
+              color: Retro.amber,
+              icon: Icon(
+                playing
+                    ? Icons.pause_circle_filled_rounded
+                    : Icons.play_circle_fill_rounded,
+              ),
+              onPressed: player.toggle,
+            );
+          },
         );
       },
     );
