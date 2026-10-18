@@ -8,6 +8,7 @@ import 'player_widgets.dart';
 import 'reciter_screen.dart';
 import 'reciters_screen.dart';
 import 'retro_radio.dart';
+import 'offline_widgets.dart';
 import 'search_screen.dart';
 import 'ui.dart';
 
@@ -244,7 +245,7 @@ class SurahScreen extends StatelessWidget {
                               child: Text(formatDuration(d),
                                   style: const TextStyle(color: Retro.muted, fontFamily: 'NotoSans', fontSize: 12)),
                             ),
-                          const SizedBox(width: 8),
+                          SaveSurahButton(moshaf: m, surah: surah.id),
                           SizedBox(
                             width: 32,
                             child: active

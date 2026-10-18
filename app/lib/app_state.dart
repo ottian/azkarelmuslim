@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'offline/offline_store.dart';
 import 'player.dart';
 import 'prayer/prayer_controller.dart';
 
@@ -40,7 +41,10 @@ class ListenEntry {
 /// الفهرس والمفضلة. بيتوصل للشاشات عن طريق [AppScope].
 class AppState extends ChangeNotifier {
   AppState(this.prefs) : api = Api(prefs) {
-    player = PlayerController(api);
+    offline = OfflineStore(prefs);
+    offline.addListener(notifyListeners);
+    offline.ready.then((_) => notifyListeners());
+    player = PlayerController(api, offline);
     prayer = PrayerController(prefs, player);
     // الشاشات بتقرا المواقيت من AppScope، فأي تغيير فيها لازم يوصلها
     prayer.addListener(notifyListeners);
@@ -119,6 +123,7 @@ class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   final Api api;
   late final PlayerController player;
+  late final OfflineStore offline;
   late final PrayerController prayer;
   late Set<int> favorites;
 

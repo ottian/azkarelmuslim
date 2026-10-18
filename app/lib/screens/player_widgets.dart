@@ -317,6 +317,13 @@ class PlayerExtras extends StatelessWidget {
           children: [
             if (moshaf)
               _Pill(
+                icon: Icons.playlist_play_rounded,
+                label: 'تشغيل تلقائي',
+                active: player.autoNext,
+                onTap: () => player.setAutoNext(!player.autoNext),
+              ),
+            if (moshaf)
+              _Pill(
                 icon: Icons.repeat_one_rounded,
                 label: 'تكرار السورة',
                 active: player.repeatSurah,

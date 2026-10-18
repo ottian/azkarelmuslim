@@ -7,6 +7,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'api.dart';
 import 'media_session.dart';
 import 'models.dart';
+import 'offline/offline_store.dart';
 
 sealed class Playback {
   const Playback();
@@ -18,9 +19,12 @@ class LivePlayback extends Playback {
 }
 
 class MoshafPlayback extends Playback {
-  const MoshafPlayback(this.moshaf, this.startSurah);
+  const MoshafPlayback(this.moshaf, this.startSurah, this.surahs);
   final Moshaf moshaf;
   final int startSurah;
+
+  /// السور اللي بتتشغّل ورا بعض: المصحف كله، أو المحفوظ على الجهاز بس
+  final List<int> surahs;
 }
 
 /// بيشغّل اللايف أو مصحف شيخ معين، وبيكمل في الخلفية.
@@ -29,7 +33,8 @@ class MoshafPlayback extends Playback {
 /// Safari ميوقفش بين السور والشاشة مقفولة. على الأندرويد والويندوز
 /// بيتشغّل كقائمة ملفات علشان التقديم والترجيع.
 class PlayerController extends ChangeNotifier {
-  PlayerController(this._api) {
+  PlayerController(this._api, this.offline) {
+    autoNext = _api.prefs.getBool(_autoNextKey) ?? true;
     _subs.add(player.playerStateStream.listen(_onState));
     _subs.add(player.currentIndexStream.listen((_) => _updateSurah()));
     _subs.add(player.positionStream.listen((pos) {
@@ -72,6 +77,17 @@ class PlayerController extends ChangeNotifier {
   Playback? _advancedFrom;
   bool _loading = false;
 
+  /// السور المحفوظة على الجهاز (بتشتغل من غير نت)
+  final OfflineStore offline;
+
+  static const _autoNextKey = 'auto_next';
+
+  /// لما السورة تخلص تشتغل اللي بعدها لوحدها
+  late bool autoNext;
+
+  /// المستخدم داس التالي/السابق، فده مش انتقال لوحده
+  bool _manualSkip = false;
+
   /// تكرار نفس السورة (للحفظ)
   bool repeatSurah = false;
   double speed = 1.0;
@@ -102,13 +118,17 @@ class PlayerController extends ChangeNotifier {
   }
 
   /// [startAt] للرجوع لنفس المكان اللي المستمع وقف عنده
-  Future<void> playMoshaf(Moshaf moshaf, int surah, {Duration? startAt}) async {
+  ///
+  /// [savedOnly]: يشغّل السور المحفوظة على الجهاز بس (من مكتبتي، من غير نت)
+  Future<void> playMoshaf(Moshaf moshaf, int surah, {Duration? startAt, bool savedOnly = false}) async {
     // البث اللايف مالوش نهاية، لازم نقفله الأول وإلا المتصفح بيفضل مستني عليه
     if (isLive && !kIsWeb) await player.stop();
-    playback = MoshafPlayback(moshaf, surah);
+    final queue = savedOnly ? [for (final s in moshaf.surahs) if (offline.isSaved(moshaf.id, s)) s] : moshaf.surahs;
+    playback = MoshafPlayback(moshaf, surah, queue.contains(surah) ? queue : moshaf.surahs);
     currentSurah = surah;
     final reciter = moshaf.reciter.name;
-    if (continuousStream) {
+    final p = playback as MoshafPlayback;
+    if (continuousStream && !offline.isSaved(moshaf.id, surah)) {
       await _load(AudioSource.uri(
         _api.url('/api/play/${moshaf.id}?from=$surah'),
         tag: MediaItem(
@@ -122,23 +142,27 @@ class PlayerController extends ChangeNotifier {
       await _load(_surahSource(moshaf, surah), startAt: startAt);
     } else {
       final sources = [
-        for (final s in moshaf.surahs)
+        for (final s in p.surahs)
           _surahSource(moshaf, s),
       ];
-      final index = moshaf.surahs.indexOf(surah);
+      final index = p.surahs.indexOf(surah);
       await _load(null, sources: sources, initialIndex: index < 0 ? 0 : index, startAt: startAt);
     }
   }
 
-  AudioSource _surahSource(Moshaf moshaf, int surah) => AudioSource.uri(
-        _api.url(moshaf.audioUrl(surah)),
-        tag: MediaItem(
-          id: 'moshaf-${moshaf.id}-$surah',
-          title: 'سورة ${catalog?.surahName(surah) ?? surah}',
-          artist: moshaf.reciter.name,
-          album: moshaf.label,
-        ),
-      );
+  AudioSource _surahSource(Moshaf moshaf, int surah) {
+    final tag = MediaItem(
+      id: 'moshaf-${moshaf.id}-$surah',
+      title: 'سورة ${catalog?.surahName(surah) ?? surah}',
+      artist: moshaf.reciter.name,
+      album: moshaf.label,
+    );
+    // على أندرويد وويندوز المحفوظ بيشتغل من الملف، وعلى الويب الـ service worker
+    // بيرد على نفس الرابط من المحفوظ
+    final file = offline.localFile(moshaf.id, surah);
+    if (file != null) return AudioSource.file(file, tag: tag);
+    return AudioSource.uri(_api.url(moshaf.audioUrl(surah)), tag: tag);
+  }
 
   Future<void> _load(AudioSource? source,
       {List<AudioSource>? sources, int initialIndex = 0, Duration? startAt}) async {
@@ -203,14 +227,15 @@ class PlayerController extends ChangeNotifier {
         !_loading && _advancedFrom != p) {
       _advancedFrom = p;
       final current = currentSurah ?? p.startSurah;
-      final i = p.moshaf.surahs.indexOf(current) + 1;
+      final i = p.surahs.indexOf(current) + 1;
+      final savedOnly = !identical(p.surahs, p.moshaf.surahs);
       if (stopAtSurahEnd) {
         stopAtSurahEnd = false;
         stop();
       } else if (repeatSurah) {
-        playMoshaf(p.moshaf, current);
-      } else if (i > 0 && i < p.moshaf.surahs.length) {
-        playMoshaf(p.moshaf, p.moshaf.surahs[i]);
+        playMoshaf(p.moshaf, current, savedOnly: savedOnly);
+      } else if (autoNext && i > 0 && i < p.surahs.length) {
+        playMoshaf(p.moshaf, p.surahs[i], savedOnly: savedOnly);
       }
     }
     notifyListeners();
@@ -244,14 +269,20 @@ class PlayerController extends ChangeNotifier {
       }
     } else {
       final i = player.currentIndex;
-      if (i != null && i < p.moshaf.surahs.length) surah = p.moshaf.surahs[i];
+      if (i != null && i < p.surahs.length) surah = p.surahs[i];
     }
     if (surah != currentSurah) {
       // على أندرويد وويندوز: السورة خلصت ودخلنا في اللي بعدها
-      if (stopAtSurahEnd && currentSurah != null && !_chainFiles) {
+      final natural = currentSurah != null && !_chainFiles && !continuousStream && !_manualSkip && !_loading;
+      _manualSkip = false;
+      if (stopAtSurahEnd && natural) {
         stopAtSurahEnd = false;
         stop();
         return;
+      }
+      if (!autoNext && natural) {
+        // يقف على أول السورة الجاية، ولو داس تشغيل تكمّل منها
+        player.pause();
       }
       currentSurah = surah;
       notifyListeners();
@@ -275,11 +306,12 @@ class PlayerController extends ChangeNotifier {
   Future<void> _skip(int delta) async {
     final p = playback;
     if (p is! MoshafPlayback || currentSurah == null) return;
-    final i = p.moshaf.surahs.indexOf(currentSurah!) + delta;
-    if (i < 0 || i >= p.moshaf.surahs.length) return;
+    final i = p.surahs.indexOf(currentSurah!) + delta;
+    if (i < 0 || i >= p.surahs.length) return;
     if (kIsWeb) {
-      await playMoshaf(p.moshaf, p.moshaf.surahs[i]);
+      await playMoshaf(p.moshaf, p.surahs[i], savedOnly: !identical(p.surahs, p.moshaf.surahs));
     } else {
+      _manualSkip = true;
       await player.seek(Duration.zero, index: i);
     }
   }
@@ -295,6 +327,12 @@ class PlayerController extends ChangeNotifier {
   Future<void> setSpeed(double value) async {
     speed = value;
     if (!isLive) await player.setSpeed(value);
+    notifyListeners();
+  }
+
+  Future<void> setAutoNext(bool value) async {
+    autoNext = value;
+    await _api.prefs.setBool(_autoNextKey, value);
     notifyListeners();
   }
 

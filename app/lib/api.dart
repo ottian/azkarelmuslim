@@ -20,6 +20,7 @@ class Api {
   Api(this._prefs);
 
   final SharedPreferences _prefs;
+  SharedPreferences get prefs => _prefs;
   final _client = http.Client();
 
   String get baseUrl {
@@ -61,17 +62,30 @@ class Api {
     return jsonDecode(utf8.decode(resp.bodyBytes));
   }
 
-  /// الأول بندور على catalog.json (GitHub Pages)، ولو مش موجود نسأل الـ API
+  /// الأول بندور على catalog.json (GitHub Pages)، ولو مش موجود نسأل الـ API.
+  /// آخر فهرس اتحمّل بيتحفظ، علشان المحفوظ في مكتبتي يشتغل من غير نت.
   Future<Catalog> catalog() async {
     try {
+      final data = await _fetchCatalog();
+      await _prefs.setString(_catalogCacheKey, jsonEncode(data));
+      return Catalog.fromJson(data);
+    } catch (e) {
+      final cached = _prefs.getString(_catalogCacheKey);
+      if (cached == null) rethrow;
+      return Catalog.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+    }
+  }
+
+  static const _catalogCacheKey = 'catalog_cache';
+
+  Future<Map<String, dynamic>> _fetchCatalog() async {
+    try {
       final data = await _get('catalog.json');
-      if (data is Map<String, dynamic> && data['mode'] == 'static') {
-        return Catalog.fromJson(data);
-      }
+      if (data is Map<String, dynamic> && data['mode'] == 'static') return data;
     } catch (_) {
       // مش GitHub Pages
     }
-    return Catalog.fromJson(await _get('/api/catalog') as Map<String, dynamic>);
+    return await _get('/api/catalog') as Map<String, dynamic>;
   }
 
   /// أصحاب صور القراء ورخصها (scripts/fetch_media.py)

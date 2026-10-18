@@ -68,6 +68,14 @@
       window.addEventListener('orientationchange', later);
     })();
   </script>
+  <script>
+    // التطبيق يفتح من غير نت، والسور المحفوظة تشتغل (web/sw.js)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('sw', e); });
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

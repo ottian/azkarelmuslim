@@ -5,6 +5,7 @@ import '../models.dart';
 import '../theme.dart';
 import 'reciter_screen.dart';
 import 'home_screen.dart';
+import 'offline_widgets.dart';
 import 'reciters_screen.dart';
 import 'settings_screen.dart';
 import 'ui.dart';
@@ -21,6 +22,7 @@ class FavoritesScreen extends StatelessWidget {
     final favorites = state.favorites.map(catalog.moshaf).whereType<Moshaf>().toList();
     final history = state.history.where((e) => catalog.moshaf(e.moshafId) != null).toList();
     final last = history.isEmpty ? null : history.first;
+    final saved = state.offline.saved.where((e) => catalog.moshaf(e.moshafId) != null).toList();
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -48,7 +50,19 @@ class FavoritesScreen extends StatelessWidget {
               ),
               for (final e in history.skip(1).take(10)) _HistoryTile(entry: e, catalog: catalog),
             ],
-            const SectionTitle('المفضلة'),
+            const SectionTitle('سور محفوظة (من غير نت)'),
+            if (saved.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Column(children: [
+                  Icon(Icons.download_for_offline_outlined, size: 44, color: Retro.line),
+                  SizedBox(height: 8),
+                  Text('اضغط على القلب جنب أي سورة، هتتحفظ هنا وتسمعها في أي وقت من غير نت',
+                      textAlign: TextAlign.center, style: TextStyle(color: Retro.muted)),
+                ]),
+              ),
+            for (final item in saved) SavedSurahTile(item: item, moshaf: catalog.moshaf(item.moshafId)!),
+            const SectionTitle('المشايخ المفضلين'),
             if (favorites.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),

@@ -6,6 +6,7 @@ import '../player.dart';
 import '../theme.dart';
 import 'player_widgets.dart';
 import 'retro_radio.dart';
+import 'offline_widgets.dart';
 import 'ui.dart';
 
 class ReciterScreen extends StatefulWidget {
@@ -208,6 +209,7 @@ class _ReciterScreenState extends State<ReciterScreen> {
                               fontSize: 12,
                             ),
                           ),
+                          SaveSurahButton(moshaf: _moshaf, surah: s),
                         ],
                       ),
                     );
